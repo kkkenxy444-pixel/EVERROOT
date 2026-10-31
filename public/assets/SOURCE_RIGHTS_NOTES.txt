@@ -1,0 +1,16 @@
+ASSET SOURCE AND LICENSE RECORD (NON-RUNTIME)
+
+This package contains selected original files copied byte-for-byte, with no audio or pixel modifications.
+All original ZIPs are kept intact separately by the user.
+Do not redistribute this assembled raw asset bundle publicly. Verify each creator's usage terms before game publication.
+
+Inputs: Sunnyside World V2.1 and archived assets; UiCozyFree; 400 Sounds Pack; Kenney RPG Audio; Cozy Life Sim SFX; Cozy Farm UI Sounds; Cozy Farm SFX Ambience 1 and 2; Minifantasy Forgotten Plains SFX; five Week BGM files; Adapa.ttf.
+
+NOTES: Original Aseprite source and GDevelop project not included in runtime asset folder. They remain in the original uploads; they can be archived separately for editing purposes.
+
+
+V4 ADDITIONAL SOURCES (ORIGINAL BYTES, NO EDITS):
+- Furnipixel_Free.zip / Furnipixel_Free/furnipixel-free.png
+- Interior Furniture 2D.rar / Interior Furniture 2D.png
+Source archives did not contain a readable license file. Rights/attribution for these two uploads must be confirmed before publication or distributing the standalone assets.
+- loot_essentials_24.zip: not included (item/inventory icons excluded per current scope).

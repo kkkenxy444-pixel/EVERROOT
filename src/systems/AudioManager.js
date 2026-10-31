@@ -1,0 +1,520 @@
+import { AUDIO_CONFIG } from '../data/audioConfig.js';
+import { SAVE, SCENE_KEYS } from '../data/gameConfig.js';
+import { eventBus, EVENTS } from './EventBus.js';
+
+/**
+ * Manages BGM per scene, time-of-day ambience loops, SFX playback, short crossfades,
+ * visibilitychange pause/resume, persistent audio settings (`everroot_v1_audio_settings`),
+ * and mobile browser autoplay unlock on first user interaction.
+ */
+class AudioManagerClass {
+  constructor() {
+    this.sound = null;
+    this.currentBgm = null;
+    this.currentBgmKey = null;
+    this.currentBgmBaseVol = AUDIO_CONFIG.BGM_VOLUME;
+    this.currentAmbience = null;
+    this.currentAmbienceKey = null;
+    this.currentAmbienceBaseVol = AUDIO_CONFIG.AMBIENCE_VOLUME;
+
+    this.muted = false;
+    this.musicLevel = AUDIO_CONFIG.DEFAULT_MUSIC_LEVEL ?? 0.75;
+    this.sfxLevel = AUDIO_CONFIG.DEFAULT_SFX_LEVEL ?? 0.75;
+    this._memorySettings = null;
+
+    this.unlocked = false;
+    this.hiddenPaused = false;
+    this.pendingSceneKey = null;
+    this.pendingPhaseId = 'pagi';
+    this._bgmFadeTimer = null;
+    this._ambFadeTimer = null;
+
+    this._loadSettings();
+  }
+
+  _loadSettings() {
+    try {
+      const raw =
+        typeof window !== 'undefined' && window.localStorage
+          ? window.localStorage.getItem(SAVE.AUDIO_STORAGE_KEY)
+          : this._memorySettings;
+      if (!raw) return;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!parsed || typeof parsed !== 'object') return;
+
+      if (typeof parsed.muted === 'boolean') {
+        this.muted = parsed.muted;
+      }
+      if (Number.isFinite(parsed.musicLevel)) {
+        this.musicLevel = Math.max(0, Math.min(1, Number(parsed.musicLevel)));
+      }
+      if (Number.isFinite(parsed.sfxLevel)) {
+        this.sfxLevel = Math.max(0, Math.min(1, Number(parsed.sfxLevel)));
+      }
+    } catch {
+      // Safe fallback if localStorage is unavailable or corrupted
+    }
+  }
+
+  _saveSettings() {
+    const payload = {
+      muted: Boolean(this.muted),
+      musicLevel: this.musicLevel,
+      sfxLevel: this.sfxLevel,
+    };
+    this._memorySettings = payload;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(
+          SAVE.AUDIO_STORAGE_KEY,
+          JSON.stringify(payload)
+        );
+      }
+    } catch {
+      // Ignore storage quota/security errors; in-memory fallback remains active
+    }
+  }
+
+  getSettings() {
+    return {
+      muted: this.muted,
+      musicLevel: this.musicLevel,
+      sfxLevel: this.sfxLevel,
+    };
+  }
+
+  _getEffectiveBgmVolume(baseVol = this.currentBgmBaseVol) {
+    if (this.muted || this.musicLevel <= 0) return 0;
+    // Scale relative to default 0.75 so 1.0 gives a gentle boost and 0 gives silence
+    return Math.min(1, (baseVol || AUDIO_CONFIG.BGM_VOLUME) * (this.musicLevel / 0.75));
+  }
+
+  _getEffectiveAmbienceVolume(baseVol = this.currentAmbienceBaseVol) {
+    if (this.muted || this.musicLevel <= 0) return 0;
+    return Math.min(
+      1,
+      (baseVol || AUDIO_CONFIG.AMBIENCE_VOLUME) * (this.musicLevel / 0.75)
+    );
+  }
+
+  /**
+   * Bind Phaser's SoundManager instance, apply persisted settings, and register
+   * first-tap audio unlock + visibilitychange pause/resume listeners.
+   */
+  init(scene) {
+    if (!scene || !scene.sound) return;
+    this.sound = scene.sound;
+    this.sound.volume = AUDIO_CONFIG.MASTER_VOLUME;
+    this.sound.mute = this.muted;
+
+    if (!this.sound.locked) {
+      this.unlocked = true;
+    } else {
+      this.sound.once('unlocked', () => {
+        this.unlocked = true;
+        this._resumePendingLoops();
+      });
+    }
+
+    if (!this._domBound) {
+      this._domBound = true;
+      const unlockHandler = () => {
+        this.unlockAudio();
+      };
+      window.addEventListener('pointerdown', unlockHandler, { passive: true });
+      window.addEventListener('touchstart', unlockHandler, { passive: true });
+      window.addEventListener('keydown', unlockHandler, { passive: true });
+
+      const visHandler = () => {
+        if (document.visibilityState === 'hidden') {
+          this._pauseForVisibility();
+        } else if (document.visibilityState === 'visible') {
+          this._resumeFromVisibility();
+        }
+      };
+      document.addEventListener('visibilitychange', visHandler);
+
+      eventBus.on(EVENTS.PLAY_SFX, (sfxKey) => {
+        this.playSfx(sfxKey);
+      });
+      eventBus.on(EVENTS.PHASE_CHANGED, (phase) => {
+        if (this.pendingSceneKey === SCENE_KEYS.GAME && phase && phase.id) {
+          this.playSceneBgm(SCENE_KEYS.GAME, phase.id);
+        }
+      });
+    }
+  }
+
+  _pauseForVisibility() {
+    this.hiddenPaused = true;
+    try {
+      if (this.currentBgm && this.currentBgm.isPlaying) {
+        this.currentBgm.pause();
+      }
+      if (this.currentAmbience && this.currentAmbience.isPlaying) {
+        this.currentAmbience.pause();
+      }
+      if (this.sound?.context && this.sound.context.state === 'running') {
+        this.sound.context.suspend().catch(() => {});
+      }
+    } catch {
+      // Ignore WebAudio state errors
+    }
+  }
+
+  _resumeFromVisibility() {
+    if (!this.hiddenPaused) return;
+    this.hiddenPaused = false;
+    try {
+      if (
+        this.unlocked &&
+        this.sound?.context &&
+        this.sound.context.state === 'suspended'
+      ) {
+        this.sound.context.resume().catch(() => {});
+      }
+      if (this.currentBgm && this.currentBgm.isPaused) {
+        this.currentBgm.resume();
+      } else if (this.unlocked && this.pendingSceneKey && !this.currentBgm) {
+        this._resumePendingLoops();
+      }
+      if (this.currentAmbience && this.currentAmbience.isPaused) {
+        this.currentAmbience.resume();
+      }
+    } catch {
+      // Ignore WebAudio state errors
+    }
+  }
+
+  /**
+   * Explicitly resumes WebAudio context on user tap.
+   */
+  unlockAudio() {
+    if (!this.sound) return;
+    try {
+      if (this.sound.context && this.sound.context.state === 'suspended') {
+        this.sound.context.resume().catch(() => {});
+      }
+      if (!this.unlocked) {
+        this.unlocked = true;
+        this._resumePendingLoops();
+      } else if (this.currentBgm && !this.currentBgm.isPlaying && !this.hiddenPaused) {
+        this.currentBgm.play();
+      }
+    } catch {
+      // Ignore WebAudio context errors on restricted devices
+    }
+  }
+
+  _resumePendingLoops() {
+    if (this.pendingSceneKey) {
+      this.playSceneBgm(this.pendingSceneKey, this.pendingPhaseId);
+    }
+  }
+
+  /**
+   * Plays the mapped BGM for a scene (from `src/data/audioConfig.js`) with a short crossfade.
+   */
+  playSceneBgm(sceneKey, phaseId = 'pagi') {
+    this.pendingSceneKey = sceneKey;
+    this.pendingPhaseId = phaseId;
+
+    if (!this.sound) return;
+
+    const cfg = AUDIO_CONFIG.SCENE_BGM[sceneKey];
+    if (!cfg) {
+      this.stopBgm(true);
+      this.stopAmbience(true);
+      return;
+    }
+
+    let targetKey = cfg.key;
+    if (sceneKey === SCENE_KEYS.GAME) {
+      const isEvening = phaseId === 'sore' || phaseId === 'malam';
+      targetKey = isEvening ? cfg.eveningKey : cfg.dayKey;
+      this.playPhaseAmbience(phaseId);
+    } else {
+      this.stopAmbience(true);
+    }
+
+    if (!targetKey) return;
+    const baseVol = cfg.volume ?? AUDIO_CONFIG.BGM_VOLUME;
+    this.currentBgmBaseVol = baseVol;
+
+    if (
+      this.currentBgmKey === targetKey &&
+      this.currentBgm &&
+      (this.currentBgm.isPlaying || this.currentBgm.isPaused)
+    ) {
+      this.currentBgm.setVolume(this._getEffectiveBgmVolume(baseVol));
+      return;
+    }
+
+    const prevBgm = this.currentBgm;
+    this.currentBgm = null;
+    this.currentBgmKey = null;
+
+    if (!this._hasAudioInCache(targetKey)) {
+      this._fadeOutAndDestroy(prevBgm, '_bgmFadeTimer');
+      return;
+    }
+
+    try {
+      const targetVol = this._getEffectiveBgmVolume(baseVol);
+      const nextBgm = this.sound.add(targetKey, {
+        loop: cfg.loop !== false,
+        volume: prevBgm ? 0 : targetVol,
+      });
+      this.currentBgm = nextBgm;
+      this.currentBgmKey = targetKey;
+      nextBgm.play();
+
+      if (prevBgm) {
+        this._crossfadeTracks(prevBgm, nextBgm, targetVol, '_bgmFadeTimer');
+      }
+    } catch {
+      this._fadeOutAndDestroy(prevBgm, '_bgmFadeTimer');
+    }
+  }
+
+  /**
+   * Plays or switches outdoor ambience loop based on time phase (`pagi`, `siang`, `sore`, `malam`)
+   * with a short crossfade.
+   */
+  playPhaseAmbience(phaseId) {
+    this.pendingPhaseId = phaseId;
+    if (!this.sound) return;
+
+    const ambCfg = AUDIO_CONFIG.PHASE_AMBIENCE[phaseId];
+    if (!ambCfg || !ambCfg.key) {
+      this.stopAmbience(true);
+      return;
+    }
+
+    const baseVol = ambCfg.volume ?? AUDIO_CONFIG.AMBIENCE_VOLUME;
+    this.currentAmbienceBaseVol = baseVol;
+
+    if (
+      this.currentAmbienceKey === ambCfg.key &&
+      this.currentAmbience &&
+      (this.currentAmbience.isPlaying || this.currentAmbience.isPaused)
+    ) {
+      this.currentAmbience.setVolume(this._getEffectiveAmbienceVolume(baseVol));
+      return;
+    }
+
+    const prevAmb = this.currentAmbience;
+    this.currentAmbience = null;
+    this.currentAmbienceKey = null;
+
+    if (!this._hasAudioInCache(ambCfg.key)) {
+      this._fadeOutAndDestroy(prevAmb, '_ambFadeTimer');
+      return;
+    }
+
+    try {
+      const targetVol = this._getEffectiveAmbienceVolume(baseVol);
+      const nextAmb = this.sound.add(ambCfg.key, {
+        loop: true,
+        volume: prevAmb ? 0 : targetVol,
+      });
+      this.currentAmbience = nextAmb;
+      this.currentAmbienceKey = ambCfg.key;
+      nextAmb.play();
+
+      if (prevAmb) {
+        this._crossfadeTracks(prevAmb, nextAmb, targetVol, '_ambFadeTimer');
+      }
+    } catch {
+      this._fadeOutAndDestroy(prevAmb, '_ambFadeTimer');
+    }
+  }
+
+  _crossfadeTracks(oldSound, newSound, targetVol, timerProp) {
+    if (this[timerProp]) {
+      clearInterval(this[timerProp]);
+      this[timerProp] = null;
+    }
+    const steps = 8;
+    const stepMs = Math.max(25, Math.round((AUDIO_CONFIG.CROSSFADE_MS || 400) / steps));
+    const startOldVol = typeof oldSound?.volume === 'number' ? oldSound.volume : 0.3;
+    let step = 0;
+
+    this[timerProp] = setInterval(() => {
+      step += 1;
+      const t = Math.min(1, step / steps);
+      try {
+        if (oldSound && oldSound.isPlaying) {
+          oldSound.setVolume(Math.max(0, startOldVol * (1 - t)));
+        }
+        if (newSound && newSound.isPlaying) {
+          newSound.setVolume(this.muted ? 0 : targetVol * t);
+        }
+      } catch {
+        // ignore
+      }
+
+      if (step >= steps) {
+        clearInterval(this[timerProp]);
+        this[timerProp] = null;
+        this._destroySoundSafe(oldSound);
+      }
+    }, stepMs);
+  }
+
+  _fadeOutAndDestroy(soundObj, timerProp) {
+    if (!soundObj) return;
+    if (this[timerProp]) {
+      clearInterval(this[timerProp]);
+      this[timerProp] = null;
+    }
+    this._destroySoundSafe(soundObj);
+  }
+
+  _destroySoundSafe(soundObj) {
+    if (!soundObj) return;
+    try {
+      soundObj.stop();
+      soundObj.destroy();
+    } catch {
+      // ignore
+    }
+  }
+
+  stopBgm(fade = false) {
+    if (this._bgmFadeTimer) {
+      clearInterval(this._bgmFadeTimer);
+      this._bgmFadeTimer = null;
+    }
+    if (this.currentBgm) {
+      const old = this.currentBgm;
+      this.currentBgm = null;
+      this.currentBgmKey = null;
+      if (fade) {
+        this._crossfadeTracks(old, null, 0, '_bgmFadeTimer');
+      } else {
+        this._destroySoundSafe(old);
+      }
+    }
+  }
+
+  stopAmbience(fade = false) {
+    if (this._ambFadeTimer) {
+      clearInterval(this._ambFadeTimer);
+      this._ambFadeTimer = null;
+    }
+    if (this.currentAmbience) {
+      const old = this.currentAmbience;
+      this.currentAmbience = null;
+      this.currentAmbienceKey = null;
+      if (fade) {
+        this._crossfadeTracks(old, null, 0, '_ambFadeTimer');
+      } else {
+        this._destroySoundSafe(old);
+      }
+    }
+  }
+
+  /**
+   * Plays a one-shot SFX key registered in `src/data/assetKeys.js`.
+   */
+  playSfx(sfxKey) {
+    if (!this.sound || this.muted || this.sfxLevel <= 0 || !sfxKey) return;
+    if (!this._hasAudioInCache(sfxKey)) return;
+
+    const sfxCfg = AUDIO_CONFIG.SFX_SETTINGS[sfxKey] || {};
+    const vol = Math.min(
+      1,
+      (sfxCfg.volume ?? 1) * AUDIO_CONFIG.SFX_VOLUME * (this.sfxLevel / 0.75)
+    );
+    const detune = sfxCfg.detuneJitter
+      ? (Math.random() * 2 - 1) * sfxCfg.detuneJitter
+      : 0;
+
+    try {
+      this.sound.play(sfxKey, {
+        volume: vol,
+        detune,
+      });
+    } catch {
+      // Ignore playback errors prior to unlock
+    }
+  }
+
+  _applyVolumesToActiveTracks() {
+    if (this.sound) {
+      this.sound.mute = this.muted;
+    }
+    try {
+      if (this.currentBgm) {
+        this.currentBgm.setVolume(
+          this._getEffectiveBgmVolume(this.currentBgmBaseVol)
+        );
+      }
+      if (this.currentAmbience) {
+        this.currentAmbience.setVolume(
+          this._getEffectiveAmbienceVolume(this.currentAmbienceBaseVol)
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    this._applyVolumesToActiveTracks();
+    this._saveSettings();
+    eventBus.emit(EVENTS.AUDIO_MUTED_CHANGED, this.muted);
+    eventBus.emit(EVENTS.AUDIO_SETTINGS_CHANGED, this.getSettings());
+    return this.muted;
+  }
+
+  setMusicLevel(level) {
+    this.musicLevel = Math.max(0, Math.min(1, Number(level) || 0));
+    if (this.musicLevel > 0 && this.muted) {
+      this.muted = false;
+    }
+    this._applyVolumesToActiveTracks();
+    this._saveSettings();
+    eventBus.emit(EVENTS.AUDIO_SETTINGS_CHANGED, this.getSettings());
+    return this.musicLevel;
+  }
+
+  cycleMusicLevel(direction = 1) {
+    const steps = AUDIO_CONFIG.VOLUME_STEPS || [0, 0.25, 0.5, 0.75, 1.0];
+    let idx = steps.findIndex((v) => Math.abs(v - this.musicLevel) < 0.05);
+    if (idx < 0) idx = 3;
+    const nextIdx = (idx + direction + steps.length) % steps.length;
+    return this.setMusicLevel(steps[nextIdx]);
+  }
+
+  setSfxLevel(level) {
+    this.sfxLevel = Math.max(0, Math.min(1, Number(level) || 0));
+    if (this.sfxLevel > 0 && this.muted) {
+      this.muted = false;
+    }
+    this._applyVolumesToActiveTracks();
+    this._saveSettings();
+    eventBus.emit(EVENTS.AUDIO_SETTINGS_CHANGED, this.getSettings());
+    return this.sfxLevel;
+  }
+
+  cycleSfxLevel(direction = 1) {
+    const steps = AUDIO_CONFIG.VOLUME_STEPS || [0, 0.25, 0.5, 0.75, 1.0];
+    let idx = steps.findIndex((v) => Math.abs(v - this.sfxLevel) < 0.05);
+    if (idx < 0) idx = 3;
+    const nextIdx = (idx + direction + steps.length) % steps.length;
+    return this.setSfxLevel(steps[nextIdx]);
+  }
+
+  _hasAudioInCache(key) {
+    try {
+      return Boolean(this.sound?.game?.cache?.audio?.exists(key));
+    } catch {
+      return false;
+    }
+  }
+}
+
+export const AudioManager = new AudioManagerClass();

@@ -1,0 +1,18 @@
+{
+  "name": "everroot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Everroot V1 (MVP) - pixel art top-down farming, fishing & exploration game built with Phaser 3",
+  "type": "module",
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "preview": "node ./node_modules/vite/bin/vite.js preview"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
