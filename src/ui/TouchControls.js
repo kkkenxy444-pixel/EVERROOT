@@ -218,9 +218,21 @@ export class TouchControls {
     };
     drawBg(false);
 
-    const fontPx = Math.max(12, Math.round(7 * (this.uiScale || 1)));
+    const s0 = this.uiScale || 1;
+    const fontPx = Math.max(
+      UI.FONT?.MIN_BUTTON_SM_PX || 26,
+      Math.round((UI.FONT?.BUTTON_SM || 13) * s0)
+    );
     const txt = this.scene.add
-      .text(0, 0, label, pixelTextStyle(fontPx, '#fff6e0'))
+      .text(
+        0,
+        0,
+        label,
+        pixelTextStyle(fontPx, '#fff6e0', {
+          stroke: '#120b07',
+          strokeThickness: Math.max(2, Math.round(1.2 * s0)),
+        })
+      )
       .setOrigin(0.5);
 
     const hitDiameter =
@@ -232,7 +244,12 @@ export class TouchControls {
 
     const rescale = (s) => {
       drawBg(false);
-      txt.setFontSize(Math.max(12, Math.round(7 * s)));
+      txt.setFontSize(
+        Math.max(
+          UI.FONT?.MIN_BUTTON_SM_PX || 26,
+          Math.round((UI.FONT?.BUTTON_SM || 13) * s)
+        )
+      );
       const d = (baseRadius + INPUT.BUTTON_HIT_PADDING) * 2 * s;
       hitZone.setSize(d, d);
     };

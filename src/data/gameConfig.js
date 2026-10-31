@@ -254,9 +254,49 @@ export const UI = Object.freeze({
   PANEL_INNER: 0x563925,
   SLOT_BG: 0x2a1b12,
   SLOT_ACTIVE_BORDER: 0xf7d560,
-  FONT_SMALL: 8,
-  FONT_MEDIUM: 10,
+  BTN_ACTIVE_BORDER: 0xf7d560,
+  BTN_DISABLED_BG: 0x2b231d,
+  BTN_DISABLED_BORDER: 0x8c7a6b,
+  BTN_DISABLED_TEXT: '#dcd3c8',
+  MODAL_WIDTH_RATIO: 0.84,
+  MODAL_MIN_BTN_HEIGHT_PX: 56,
+  FONT_SMALL: 11,
+  FONT_MEDIUM: 14,
   FONT_LARGE: 18,
+  // Base UI font units (multiplied by integer uiScale=2 on 1612x720) + physical pixel floors
+  FONT: Object.freeze({
+    MENU_TITLE: 22, // 44px physical at uiScale=2
+    MIN_MENU_TITLE_PX: 38,
+    MENU_SUBTITLE: 14, // 28px physical at uiScale=2
+    MIN_MENU_SUB_PX: 26,
+    MODAL_TITLE: 18, // 36px physical at uiScale=2
+    MIN_MODAL_TITLE_PX: 34,
+    MODAL_BODY: 15, // 30px physical at uiScale=2 (~28-32px target)
+    MIN_MODAL_BODY_PX: 28,
+    MODAL_SUB: 14, // 28px physical at uiScale=2 (~28-32px target)
+    MIN_MODAL_SUB_PX: 28,
+    BUTTON: 14, // 28px physical at uiScale=2 (~26-28px target)
+    MIN_BUTTON_PX: 26,
+    BUTTON_SM: 13, // 26px physical at uiScale=2 (~26-28px target)
+    MIN_BUTTON_SM_PX: 26,
+    HUD_MAIN: 13, // 26px physical at uiScale=2
+    MIN_HUD_MAIN_PX: 24,
+    HUD_SMALL: 12, // 24px physical at uiScale=2
+    MIN_HUD_SMALL_PX: 22,
+    HUD_SLOT: 11, // 22px physical at uiScale=2
+    MIN_HUD_SLOT_PX: 20,
+    TOAST: 14, // 28px physical at uiScale=2
+    MIN_TOAST_PX: 28,
+    HINT: 14, // 28px physical at uiScale=2
+    MIN_HINT_PX: 26,
+    FISHING_ALERT: 15, // 30px physical at uiScale=2
+    MIN_FISHING_ALERT_PX: 28,
+    FLOATING: 14, // 28px physical at uiScale=2
+    MIN_FLOATING_PX: 26,
+    WORLD_LABEL: 9, // 9 world px * zoom 3 = 27px physical on 1612x720
+    DEBUG_OVERLAY: 11, // 22px physical at uiScale=2
+    MIN_DEBUG_PX: 20,
+  }),
   FADE_MS: 260,
 });
 

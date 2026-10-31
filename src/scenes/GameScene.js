@@ -615,7 +615,9 @@ export class GameScene extends Phaser.Scene {
       this.player.y,
       front
     );
-    this.worldBuilder.updateLandmarkLabels(landmark?.type || null);
+    this.worldBuilder.updateLandmarkLabels(
+      this.isShopOpen || this.isSleeping ? null : landmark?.type || null
+    );
 
     const tool = TOOLS[this.toolIndex];
     let hintText = '';

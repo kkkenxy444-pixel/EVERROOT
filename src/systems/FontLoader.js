@@ -35,8 +35,9 @@ export function loadGameFont() {
       if (document.fonts && typeof document.fonts.load === 'function') {
         await Promise.race([
           Promise.all([
-            document.fonts.load(`12px "${GAME.FONT_FAMILY}"`),
             document.fonts.load(`16px "${GAME.FONT_FAMILY}"`),
+            document.fonts.load(`28px "${GAME.FONT_FAMILY}"`),
+            document.fonts.load(`36px "${GAME.FONT_FAMILY}"`),
           ]),
           new Promise((resolve) => setTimeout(resolve, 1500)),
         ]);
@@ -56,17 +57,27 @@ export function loadGameFont() {
 }
 
 /**
- * Helper to create crisp pixel text style objects for Phaser.
- * Uses integer pixel fontSize and explicit resolution so `adapa.ttf` stays sharp.
+ * Returns crisp text resolution matched to the device's physical DPR (minimum 2, capped at 3).
  */
-export function pixelTextStyle(size = 10, color = '#fff6e0', extra = {}) {
-  const pxSize = Math.max(6, Math.round(size));
+export function getTextResolution() {
+  if (typeof window === 'undefined') return 2;
+  const rawDpr = Number(window.devicePixelRatio) || 2;
+  return Math.min(3, Math.max(2, Math.ceil(rawDpr)));
+}
+
+/**
+ * Helper to create crisp pixel text style objects for Phaser.
+ * Uses integer pixel fontSize and DPR-matched resolution so `adapa.ttf` stays sharp.
+ */
+export function pixelTextStyle(size = 14, color = '#fff6e0', extra = {}) {
+  const pxSize = Math.max(8, Math.round(size));
+  const res = extra.resolution || getTextResolution();
   return {
     fontFamily: `"${GAME.FONT_FAMILY}", ${GAME.FONT_FALLBACK}`,
     fontSize: `${pxSize}px`,
     color,
-    resolution: 2,
-    padding: { x: 1, y: 1 },
+    resolution: res,
+    padding: { x: 2, y: 2 },
     shadow: {
       offsetX: 1,
       offsetY: 1,

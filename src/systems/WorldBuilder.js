@@ -1,5 +1,5 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
-import { DEPTH, MAP_ZONES, TILE, WORLD } from '../data/gameConfig.js';
+import { DEPTH, MAP_ZONES, TILE, UI, WORLD } from '../data/gameConfig.js';
 import {
   DIRT_PATH_VARIANTS,
   GRASS_VARIANTS,
@@ -310,15 +310,18 @@ export class WorldBuilder {
     }
 
     // Small sign label above door (hidden until player is nearby)
+    const labelFontPx = UI.FONT?.WORLD_LABEL || 9;
     this.landmarkLabels.sleep = this.scene.add
       .text(
         hz.DOOR_TILE_X * TILE.SIZE + 8,
-        (hz.DOOR_TILE_Y - 0.15) * TILE.SIZE,
+        (hz.DOOR_TILE_Y - 0.25) * TILE.SIZE,
         'Rumah (Tidur)',
-        pixelTextStyle(6, '#fff6e0', {
+        pixelTextStyle(labelFontPx, '#fff6e0', {
           resolution: 3,
-          backgroundColor: 'rgba(26,18,12,0.72)',
-          padding: { x: 2, y: 1 },
+          stroke: '#120b07',
+          strokeThickness: 2,
+          backgroundColor: 'rgba(18,11,7,0.88)',
+          padding: { x: 4, y: 2 },
         })
       )
       .setOrigin(0.5, 1)
@@ -331,6 +334,7 @@ export class WorldBuilder {
     const sb = MAP_ZONES.SHIPPING_BOX;
     const sbX = sb.TILE_X * TILE.SIZE + 8;
     const sbY = (sb.TILE_Y + 1) * TILE.SIZE - 2;
+    const labelFontPx = UI.FONT?.WORLD_LABEL || 9;
 
     const crateBase = this.scene.add
       .image(sbX, sbY, ASSET_KEYS.CRATE_BASE)
@@ -349,12 +353,14 @@ export class WorldBuilder {
     this.landmarkLabels.sell = this.scene.add
       .text(
         sbX,
-        sbY - 19,
+        sbY - 20,
         'Jual Panen',
-        pixelTextStyle(6, '#ffd866', {
+        pixelTextStyle(labelFontPx, '#ffd866', {
           resolution: 3,
-          backgroundColor: 'rgba(26,18,12,0.72)',
-          padding: { x: 2, y: 1 },
+          stroke: '#120b07',
+          strokeThickness: 2,
+          backgroundColor: 'rgba(18,11,7,0.88)',
+          padding: { x: 4, y: 2 },
         })
       )
       .setOrigin(0.5, 1)
@@ -392,12 +398,14 @@ export class WorldBuilder {
     this.landmarkLabels.shop = this.scene.add
       .text(
         stallX,
-        stallY - 24,
+        stallY - 25,
         'Kios Bibit',
-        pixelTextStyle(6, '#a8f0a0', {
+        pixelTextStyle(labelFontPx, '#a8f0a0', {
           resolution: 3,
-          backgroundColor: 'rgba(26,18,12,0.72)',
-          padding: { x: 2, y: 1 },
+          stroke: '#120b07',
+          strokeThickness: 2,
+          backgroundColor: 'rgba(18,11,7,0.88)',
+          padding: { x: 4, y: 2 },
         })
       )
       .setOrigin(0.5, 1)

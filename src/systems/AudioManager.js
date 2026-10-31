@@ -18,7 +18,9 @@ class AudioManagerClass {
     this.currentAmbienceBaseVol = AUDIO_CONFIG.AMBIENCE_VOLUME;
 
     this.muted = false;
-    this.musicLevel = AUDIO_CONFIG.DEFAULT_MUSIC_LEVEL ?? 0.75;
+    this.musicLevel =
+      AUDIO_CONFIG.DEFAULT_BGM_LEVEL ?? AUDIO_CONFIG.DEFAULT_MUSIC_LEVEL ?? 0.75;
+    this.ambienceLevel = AUDIO_CONFIG.DEFAULT_AMBIENCE_LEVEL ?? 0.5;
     this.sfxLevel = AUDIO_CONFIG.DEFAULT_SFX_LEVEL ?? 0.75;
     this._memorySettings = null;
 
@@ -28,6 +30,10 @@ class AudioManagerClass {
     this.pendingPhaseId = 'pagi';
     this._bgmFadeTimer = null;
     this._ambFadeTimer = null;
+    this._fadingBgm = null;
+    this._fadingAmbience = null;
+    /** @type {Map<string, Array<{ sound: any, startedAt: number, volume: number }>>} */
+    this.activeSfx = new Map();
 
     this._loadSettings();
   }
@@ -48,6 +54,12 @@ class AudioManagerClass {
       if (Number.isFinite(parsed.musicLevel)) {
         this.musicLevel = Math.max(0, Math.min(1, Number(parsed.musicLevel)));
       }
+      if (Number.isFinite(parsed.ambienceLevel)) {
+        this.ambienceLevel = Math.max(
+          0,
+          Math.min(1, Number(parsed.ambienceLevel))
+        );
+      }
       if (Number.isFinite(parsed.sfxLevel)) {
         this.sfxLevel = Math.max(0, Math.min(1, Number(parsed.sfxLevel)));
       }
@@ -60,6 +72,7 @@ class AudioManagerClass {
     const payload = {
       muted: Boolean(this.muted),
       musicLevel: this.musicLevel,
+      ambienceLevel: this.ambienceLevel,
       sfxLevel: this.sfxLevel,
     };
     this._memorySettings = payload;
@@ -79,21 +92,26 @@ class AudioManagerClass {
     return {
       muted: this.muted,
       musicLevel: this.musicLevel,
+      ambienceLevel: this.ambienceLevel,
       sfxLevel: this.sfxLevel,
     };
   }
 
   _getEffectiveBgmVolume(baseVol = this.currentBgmBaseVol) {
     if (this.muted || this.musicLevel <= 0) return 0;
-    // Scale relative to default 0.75 so 1.0 gives a gentle boost and 0 gives silence
-    return Math.min(1, (baseVol || AUDIO_CONFIG.BGM_VOLUME) * (this.musicLevel / 0.75));
+    const def = AUDIO_CONFIG.DEFAULT_BGM_LEVEL || 0.75;
+    return Math.min(
+      1,
+      (baseVol || AUDIO_CONFIG.BGM_VOLUME) * (this.musicLevel / def)
+    );
   }
 
   _getEffectiveAmbienceVolume(baseVol = this.currentAmbienceBaseVol) {
-    if (this.muted || this.musicLevel <= 0) return 0;
+    if (this.muted || this.ambienceLevel <= 0) return 0;
+    const def = AUDIO_CONFIG.DEFAULT_AMBIENCE_LEVEL || 0.5;
     return Math.min(
       1,
-      (baseVol || AUDIO_CONFIG.AMBIENCE_VOLUME) * (this.musicLevel / 0.75)
+      (baseVol || AUDIO_CONFIG.AMBIENCE_VOLUME) * (this.ambienceLevel / def)
     );
   }
 
