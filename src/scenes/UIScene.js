@@ -62,23 +62,58 @@ export class UIScene extends Phaser.Scene {
   }
 
   _buildHudElements() {
+    if (this._debugAudioTimer) {
+      this._debugAudioTimer.remove(false);
+      this._debugAudioTimer = null;
+    }
     if (this.hudRoot) {
       this.hudRoot.destroy(true);
     }
     this.hudRoot = this.add.container(0, 0).setDepth(100);
 
     const s = this.uiScale;
-    const fontMain = Math.max(12, Math.round(7.5 * s));
-    const fontSmall = Math.max(11, Math.round(6.5 * s));
-    const fontSlot = Math.max(10, Math.round(5.5 * s));
+    const F = UI.FONT || {};
+    const fontMain = Math.max(
+      F.MIN_HUD_MAIN_PX || 24,
+      Math.round((F.HUD_MAIN || 13) * s)
+    );
+    const fontSmall = Math.max(
+      F.MIN_HUD_SMALL_PX || 22,
+      Math.round((F.HUD_SMALL || 12) * s)
+    );
+    const fontSlot = Math.max(
+      F.MIN_HUD_SLOT_PX || 20,
+      Math.round((F.HUD_SLOT || 11) * s)
+    );
+    const fontBtnSm = Math.max(
+      F.MIN_BUTTON_SM_PX || 26,
+      Math.round((F.BUTTON_SM || 13) * s)
+    );
+    const fontToast = Math.max(
+      F.MIN_TOAST_PX || 28,
+      Math.round((F.TOAST || 14) * s)
+    );
+    const fontHint = Math.max(
+      F.MIN_HINT_PX || 26,
+      Math.round((F.HINT || 14) * s)
+    );
+    const fontFishing = Math.max(
+      F.MIN_FISHING_ALERT_PX || 28,
+      Math.round((F.FISHING_ALERT || 15) * s)
+    );
+    const fontDebug = Math.max(
+      F.MIN_DEBUG_PX || 20,
+      Math.round((F.DEBUG_OVERLAY || 11) * s)
+    );
+    const strokePx = Math.max(2, Math.round(1.2 * s));
 
     // --- 1. Single-row Top-Left Status Bar (Day/Time • Coins • Active Seed • Tas X/12 toggle) ---
     this.topLeftGroup = this.add.container(0, 0);
-    const barW = 248 * s;
-    const barH = 20 * s;
+    const barW = 316 * s;
+    const barH = 24 * s;
 
     const bar = this.add.graphics();
-    bar.fillStyle(UI.PANEL_BG, 0.9);
+    bar.fillStyle(UI.PANEL_BG, 0.94);
     bar.fillRoundedRect(0, 0, barW, barH, 4 * s);
     bar.lineStyle(1.5 * s, UI.PANEL_BORDER, 1);
     bar.strokeRoundedRect(0, 0, barW, barH, 4 * s);
@@ -86,67 +121,84 @@ export class UIScene extends Phaser.Scene {
     const cy = barH / 2;
 
     const clockIcon = this.add
-      .image(10 * s, cy, ASSET_KEYS.ICON_STOPWATCH)
+      .image(11 * s, cy, ASSET_KEYS.ICON_STOPWATCH)
       .setOrigin(0.5)
-      .setScale(s);
+      .setScale(1.1 * s);
 
     this.timeText = this.add
       .text(
-        19 * s,
+        21 * s,
         cy,
         'Hari 1 • 06:00 (Pagi)',
-        pixelTextStyle(fontMain, '#fff6e0')
+        pixelTextStyle(fontMain, '#fff6e0', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
       )
       .setOrigin(0, 0.5);
 
     // Crisp pixel coin icon + Coin counter
-    const coinX = 136 * s;
+    const coinX = 172 * s;
     const coinGfx = this.add.graphics();
     coinGfx.fillStyle(0xf7d560, 1);
-    coinGfx.fillCircle(coinX, cy, 4 * s);
-    coinGfx.lineStyle(1 * s, 0x9c6b1c, 1);
-    coinGfx.strokeCircle(coinX, cy, 4 * s);
+    coinGfx.fillCircle(coinX, cy, 4.5 * s);
+    coinGfx.lineStyle(1.2 * s, 0x9c6b1c, 1);
+    coinGfx.strokeCircle(coinX, cy, 4.5 * s);
 
     const startCoins = this.gameScene?.gameState?.coins ?? 50;
     this.coinText = this.add
       .text(
-        coinX + 6 * s,
+        coinX + 7 * s,
         cy,
         `${startCoins}G`,
-        pixelTextStyle(fontMain, '#ffd866')
+        pixelTextStyle(fontMain, '#ffd866', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
       )
       .setOrigin(0, 0.5);
 
     // Compact active seed icon + stock count inside the same top row
-    const seedX = 172 * s;
+    const seedX = 218 * s;
     this.activeSeedIcon = this.add
       .image(seedX, cy, cropStageKey('parsnip', 5))
       .setOrigin(0.5)
-      .setScale(0.85 * s);
+      .setScale(0.95 * s);
     this.activeSeedText = this.add
-      .text(seedX + 7 * s, cy, 'x5', pixelTextStyle(fontSmall, '#a8f0a0'))
+      .text(
+        seedX + 8 * s,
+        cy,
+        'x5',
+        pixelTextStyle(fontSmall, '#a8f0a0', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
+      )
       .setOrigin(0, 0.5);
 
     // Compact Inventory Slot Grid toggle button at the right end of the top row
-    const bagX = 200 * s;
-    const bagW = 44 * s;
-    const bagH = 15 * s;
+    const bagX = 252 * s;
+    const bagW = 60 * s;
+    const bagH = 19 * s;
     const bagBg = this.add.graphics();
-    bagBg.fillStyle(UI.PANEL_INNER, 0.95);
+    bagBg.fillStyle(UI.PANEL_INNER, 0.96);
     bagBg.fillRoundedRect(bagX, cy - bagH / 2, bagW, bagH, 3 * s);
-    bagBg.lineStyle(1 * s, UI.PANEL_BORDER, 0.9);
+    bagBg.lineStyle(1.2 * s, UI.PANEL_BORDER, 0.95);
     bagBg.strokeRoundedRect(bagX, cy - bagH / 2, bagW, bagH, 3 * s);
 
     const basketIcon = this.add
-      .image(bagX + 7 * s, cy, ASSET_KEYS.ICON_BASKET)
+      .image(bagX + 9 * s, cy, ASSET_KEYS.ICON_BASKET)
       .setOrigin(0.5)
-      .setScale(0.8 * s);
+      .setScale(0.9 * s);
     this.totalHarvestText = this.add
       .text(
-        bagX + 14 * s,
+        bagX + 17 * s,
         cy,
         `0/${INVENTORY.MAX_SLOTS}▾`,
-        pixelTextStyle(fontSlot, '#fff6e0')
+        pixelTextStyle(fontSmall, '#fff6e0', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
       )
       .setOrigin(0, 0.5);
 
@@ -165,22 +217,22 @@ export class UIScene extends Phaser.Scene {
 
     // Collapsible 12-slot compact inventory drawer (6 columns x 2 rows)
     this.storageDrawer = this.add
-      .container(0, barH + 3 * s)
+      .container(0, barH + 4 * s)
       .setVisible(this.storageOpen);
 
     const cols = INVENTORY.COMPACT_COLS || 6;
     const rows = Math.ceil(INVENTORY.MAX_SLOTS / cols);
-    const cellS = 22 * s;
-    const cellGap = 3 * s;
-    const padX = 5 * s;
-    const padY = 5 * s;
+    const cellS = 26 * s;
+    const cellGap = 3.5 * s;
+    const padX = 6 * s;
+    const padY = 6 * s;
     const drawerW = padX * 2 + cols * cellS + (cols - 1) * cellGap;
     const drawerH = padY * 2 + rows * cellS + (rows - 1) * cellGap;
 
     const drawerBg = this.add.graphics();
-    drawerBg.fillStyle(UI.PANEL_BG, 0.94);
+    drawerBg.fillStyle(UI.PANEL_BG, 0.96);
     drawerBg.fillRoundedRect(0, 0, drawerW, drawerH, 4 * s);
-    drawerBg.lineStyle(1.2 * s, UI.PANEL_BORDER, 0.95);
+    drawerBg.lineStyle(1.4 * s, UI.PANEL_BORDER, 0.95);
     drawerBg.strokeRoundedRect(0, 0, drawerW, drawerH, 4 * s);
     this.storageDrawer.add(drawerBg);
 
@@ -192,7 +244,7 @@ export class UIScene extends Phaser.Scene {
       const rcy = padY + row * (cellS + cellGap) + cellS / 2;
 
       const cellBg = this.add.graphics();
-      cellBg.fillStyle(UI.SLOT_BG, 0.9);
+      cellBg.fillStyle(UI.SLOT_BG, 0.92);
       cellBg.fillRoundedRect(
         cx - cellS / 2,
         rcy - cellS / 2,
@@ -200,7 +252,7 @@ export class UIScene extends Phaser.Scene {
         cellS,
         3 * s
       );
-      cellBg.lineStyle(1 * s, UI.PANEL_BORDER, 0.75);
+      cellBg.lineStyle(1.1 * s, UI.PANEL_BORDER, 0.8);
       cellBg.strokeRoundedRect(
         cx - cellS / 2,
         rcy - cellS / 2,
@@ -212,21 +264,24 @@ export class UIScene extends Phaser.Scene {
       const icon = this.add
         .image(cx, rcy - 1 * s, ASSET_KEYS.ITEM_SEEDS)
         .setOrigin(0.5)
-        .setScale(0.85 * s)
+        .setScale(0.95 * s)
         .setVisible(false);
 
       const badge = this.add
-        .image(cx + 4 * s, rcy - 4 * s, cropStageKey('parsnip', 5))
+        .image(cx + 5 * s, rcy - 5 * s, cropStageKey('parsnip', 5))
         .setOrigin(0.5)
-        .setScale(0.55 * s)
+        .setScale(0.65 * s)
         .setVisible(false);
 
       const countText = this.add
         .text(
-          cx + cellS / 2 - 1.5 * s,
+          cx + cellS / 2 - 2 * s,
           rcy + cellS / 2 - 1 * s,
           '',
-          pixelTextStyle(fontSlot, '#fff6e0')
+          pixelTextStyle(fontSlot, '#fff6e0', {
+            stroke: '#120b07',
+            strokeThickness: strokePx,
+          })
         )
         .setOrigin(1, 1)
         .setVisible(false);
@@ -253,11 +308,12 @@ export class UIScene extends Phaser.Scene {
 
     // --- 2. Top-Right Utility Buttons (Audio▾, Tileset & Menu) + Collapsible Audio Popover ---
     const initAudio = AudioManager.getSettings();
+    const topBtnH = 22 * s;
     this.btnAudio = this._createSmallTopButton(
-      44 * s,
-      18 * s,
+      54 * s,
+      topBtnH,
       initAudio.muted ? 'Mute▾' : 'Suara▾',
-      fontSmall,
+      fontBtnSm,
       () => {
         this.audioOpen = !this.audioOpen;
         if (this.audioPopover) {
@@ -267,10 +323,10 @@ export class UIScene extends Phaser.Scene {
     );
 
     this.btnTileset = this._createSmallTopButton(
-      42 * s,
-      18 * s,
+      52 * s,
+      topBtnH,
       'Tileset',
-      fontSmall,
+      fontBtnSm,
       () => {
         if (this.gameScene && this.gameScene.flushSaveIfActive) {
           this.gameScene.flushSaveIfActive();
@@ -284,10 +340,10 @@ export class UIScene extends Phaser.Scene {
     );
 
     this.btnMenu = this._createSmallTopButton(
-      38 * s,
-      18 * s,
+      46 * s,
+      topBtnH,
       'Menu',
-      fontSmall,
+      fontBtnSm,
       () => {
         if (this.gameScene && this.gameScene.flushSaveIfActive) {
           this.gameScene.flushSaveIfActive();
@@ -298,56 +354,80 @@ export class UIScene extends Phaser.Scene {
       }
     );
 
-    // Collapsible Audio Settings Popover (Mute, Music Volume, SFX Volume)
+    // Collapsible Audio Settings Popover (Mute, BGM, Ambience, SFX)
     this.audioPopover = this.add.container(0, 0).setVisible(this.audioOpen);
-    const popW = 86 * s;
-    const popH = 62 * s;
+    const popW = 104 * s;
+    const popBtnH = 19 * s;
+    const popGap = 4 * s;
+    const popH = 4 * popBtnH + 3 * popGap + 10 * s;
     const popBg = this.add.graphics();
-    popBg.fillStyle(UI.PANEL_BG, 0.96);
+    popBg.fillStyle(UI.PANEL_BG, 0.97);
     popBg.fillRoundedRect(-popW, 0, popW, popH, 4 * s);
-    popBg.lineStyle(1.2 * s, UI.PANEL_BORDER, 0.95);
+    popBg.lineStyle(1.4 * s, UI.PANEL_BORDER, 0.95);
     popBg.strokeRoundedRect(-popW, 0, popW, popH, 4 * s);
 
     this.btnPopMute = this._createSmallTopButton(
-      popW - 8 * s,
-      15 * s,
+      popW - 10 * s,
+      popBtnH,
       '',
-      fontSlot,
+      fontSmall,
       () => {
         AudioManager.toggleMute();
         this._updateAudioPopoverLabels();
       }
     );
-    this.btnPopMute.setPosition(-popW / 2, 11.5 * s);
+    this.btnPopMute.setPosition(-popW / 2, 5 * s + popBtnH / 2);
 
     this.btnPopMusic = this._createSmallTopButton(
-      popW - 8 * s,
-      15 * s,
+      popW - 10 * s,
+      popBtnH,
       '',
-      fontSlot,
+      fontSmall,
       () => {
         AudioManager.cycleMusicLevel(1);
         this._updateAudioPopoverLabels();
       }
     );
-    this.btnPopMusic.setPosition(-popW / 2, 30.5 * s);
+    this.btnPopMusic.setPosition(
+      -popW / 2,
+      5 * s + popBtnH / 2 + (popBtnH + popGap)
+    );
+
+    this.btnPopAmbience = this._createSmallTopButton(
+      popW - 10 * s,
+      popBtnH,
+      '',
+      fontSmall,
+      () => {
+        AudioManager.cycleAmbienceLevel(1);
+        this._updateAudioPopoverLabels();
+      }
+    );
+    this.btnPopAmbience.setPosition(
+      -popW / 2,
+      5 * s + popBtnH / 2 + (popBtnH + popGap) * 2
+    );
 
     this.btnPopSfx = this._createSmallTopButton(
-      popW - 8 * s,
-      15 * s,
+      popW - 10 * s,
+      popBtnH,
       '',
-      fontSlot,
+      fontSmall,
       () => {
         AudioManager.cycleSfxLevel(1);
         this._updateAudioPopoverLabels();
       }
     );
-    this.btnPopSfx.setPosition(-popW / 2, 49.5 * s);
+    this.btnPopSfx.setPosition(
+      -popW / 2,
+      5 * s + popBtnH / 2 + (popBtnH + popGap) * 3
+    );
 
     this.audioPopover.add([
       popBg,
       this.btnPopMute,
       this.btnPopMusic,
+      this.btnPopAmbience,
       this.btnPopSfx,
     ]);
     this._updateAudioPopoverLabels();
@@ -360,9 +440,9 @@ export class UIScene extends Phaser.Scene {
     ]);
 
     // --- 3. Bottom-Center Toolbar ---
-    const slotW = 28 * s;
-    const slotH = 28 * s;
-    const gap = 4 * s;
+    const slotW = 34 * s;
+    const slotH = 32 * s;
+    const gap = 4.5 * s;
     this.toolbarTotalW = TOOLS.length * slotW + (TOOLS.length - 1) * gap;
     this.toolbarSlotW = slotW;
     this.toolbarSlotH = slotH;
@@ -373,18 +453,29 @@ export class UIScene extends Phaser.Scene {
       const c = this.add.container(0, 0);
       const bg = this.add.graphics();
       const icon = this.add
-        .image(0, -2 * s, tool.iconKey)
+        .image(0, -3 * s, tool.iconKey)
         .setOrigin(0.5)
-        .setScale(s);
+        .setScale(1.1 * s);
       const lbl = this.add
-        .text(0, 9 * s, tool.shortLabel, pixelTextStyle(fontSlot, '#fff6e0'))
+        .text(
+          0,
+          10 * s,
+          tool.shortLabel,
+          pixelTextStyle(fontSlot, '#fff6e0', {
+            stroke: '#120b07',
+            strokeThickness: strokePx,
+          })
+        )
         .setOrigin(0.5);
       const num = this.add
         .text(
           -slotW / 2 + 2.5 * s,
           -slotH / 2 + 1.5 * s,
           String(idx + 1),
-          pixelTextStyle(fontSlot, '#d9c4a9')
+          pixelTextStyle(fontSlot, '#d9c4a9', {
+            stroke: '#120b07',
+            strokeThickness: strokePx,
+          })
         )
         .setOrigin(0, 0);
 
@@ -392,15 +483,18 @@ export class UIScene extends Phaser.Scene {
 
       if (tool.id === TOOL_IDS.SEEDS) {
         this.seedSlotBadge = this.add
-          .image(5.5 * s, -5.5 * s, cropStageKey('parsnip', 5))
+          .image(6 * s, -6 * s, cropStageKey('parsnip', 5))
           .setOrigin(0.5)
-          .setScale(0.65 * s);
+          .setScale(0.75 * s);
         this.seedSlotCount = this.add
           .text(
             slotW / 2 - 2 * s,
             -slotH / 2 + 1.5 * s,
             '5',
-            pixelTextStyle(fontSlot, '#a8f0a0')
+            pixelTextStyle(fontSlot, '#a8f0a0', {
+              stroke: '#120b07',
+              strokeThickness: strokePx,
+            })
           )
           .setOrigin(1, 0);
         children.push(this.seedSlotBadge, this.seedSlotCount);
@@ -430,9 +524,11 @@ export class UIScene extends Phaser.Scene {
         0,
         0,
         this._currentHint,
-        pixelTextStyle(fontSmall, '#ffd866', {
-          backgroundColor: 'rgba(26,18,12,0.78)',
-          padding: { x: 4 * s, y: 2 * s },
+        pixelTextStyle(fontHint, '#ffd866', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+          backgroundColor: 'rgba(18,11,7,0.88)',
+          padding: { x: 6 * s, y: 3 * s },
         })
       )
       .setOrigin(0.5)
@@ -443,9 +539,11 @@ export class UIScene extends Phaser.Scene {
         0,
         0,
         this._currentToast,
-        pixelTextStyle(fontSmall, '#a8f0a0', {
-          backgroundColor: 'rgba(26,18,12,0.86)',
-          padding: { x: 6 * s, y: 2.5 * s },
+        pixelTextStyle(fontToast, '#a8f0a0', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+          backgroundColor: 'rgba(18,11,7,0.92)',
+          padding: { x: 8 * s, y: 3.5 * s },
         })
       )
       .setOrigin(0.5)
@@ -455,10 +553,10 @@ export class UIScene extends Phaser.Scene {
 
     // --- 5. Native-Resolution Fishing Bite / Reel Timing Indicator (above player) ---
     this.fishingAlertGroup = this.add.container(0, 0).setVisible(false);
-    const alertW = 68 * s;
-    const alertH = 22 * s;
+    const alertW = 86 * s;
+    const alertH = 26 * s;
     this.fishingAlertBg = this.add.graphics();
-    this.fishingAlertBg.fillStyle(0x2a140d, 0.94);
+    this.fishingAlertBg.fillStyle(0x2a140d, 0.96);
     this.fishingAlertBg.fillRoundedRect(
       -alertW / 2,
       -alertH / 2,
@@ -466,7 +564,7 @@ export class UIScene extends Phaser.Scene {
       alertH,
       4 * s
     );
-    this.fishingAlertBg.lineStyle(1.5 * s, 0xffd866, 1);
+    this.fishingAlertBg.lineStyle(1.8 * s, 0xffd866, 1);
     this.fishingAlertBg.strokeRoundedRect(
       -alertW / 2,
       -alertH / 2,
@@ -476,23 +574,26 @@ export class UIScene extends Phaser.Scene {
     );
 
     const alertIcon = this.add
-      .image(-alertW / 2 + 8 * s, -3.5 * s, ASSET_KEYS.ICON_ALERTED)
+      .image(-alertW / 2 + 10 * s, -4 * s, ASSET_KEYS.ICON_ALERTED)
       .setOrigin(0.5)
-      .setScale(1.2 * s);
+      .setScale(1.3 * s);
 
     const alertLabel = this.add
       .text(
-        4 * s,
-        -3.5 * s,
+        6 * s,
+        -4 * s,
         '! TARIK !',
-        pixelTextStyle(fontSmall, '#ffd866')
+        pixelTextStyle(fontFishing, '#ffd866', {
+          stroke: '#120b07',
+          strokeThickness: strokePx + 1,
+        })
       )
       .setOrigin(0.5);
 
     this.fishingBarFill = this.add.graphics();
-    this._fishingBarW = alertW - 10 * s;
-    this._fishingBarH = 4 * s;
-    this._fishingBarY = alertH / 2 - 5.5 * s;
+    this._fishingBarW = alertW - 12 * s;
+    this._fishingBarH = 4.5 * s;
+    this._fishingBarY = alertH / 2 - 6.5 * s;
 
     this.fishingAlertGroup.add([
       this.fishingAlertBg,
@@ -502,37 +603,81 @@ export class UIScene extends Phaser.Scene {
     ]);
     this.hudRoot.add(this.fishingAlertGroup);
 
-    // --- 6. Hidden Debug Corner Buttons (ONLY created when URL has `?debug=1`) ---
+    // --- 6. Hidden Debug Corner Buttons & Active Audio Overlay (ONLY when `?debug=1`) ---
     this.debugGroup = null;
+    this.debugAudioText = null;
     if (isDebugModeEnabled()) {
       this.debugGroup = this.add.container(0, 0);
+      const dbgBtnH = 18 * s;
       const btnCoins = this._createSmallTopButton(
-        34 * s,
-        15 * s,
+        40 * s,
+        dbgBtnH,
         '+100G',
         fontSlot,
         () => eventBus.emit(EVENTS.DEBUG_ADD_COINS)
       );
       const btnDay = this._createSmallTopButton(
-        38 * s,
-        15 * s,
+        44 * s,
+        dbgBtnH,
         'Hari+1',
         fontSlot,
         () => eventBus.emit(EVENTS.DEBUG_NEXT_DAY)
       );
       const btnSeeds = this._createSmallTopButton(
-        36 * s,
-        15 * s,
+        42 * s,
+        dbgBtnH,
         '+Bibit',
         fontSlot,
         () => eventBus.emit(EVENTS.DEBUG_FILL_SEEDS)
       );
-      btnCoins.setPosition(17 * s, 0);
-      btnDay.setPosition(56 * s, 0);
-      btnSeeds.setPosition(96 * s, 0);
-      this.debugGroup.add([btnCoins, btnDay, btnSeeds]);
+      btnCoins.setPosition(20 * s, 0);
+      btnDay.setPosition(66 * s, 0);
+      btnSeeds.setPosition(113 * s, 0);
+
+      this.debugAudioText = this.add
+        .text(
+          134 * s,
+          12 * s,
+          'AUDIO: memuat...',
+          pixelTextStyle(fontDebug, '#e6f5d0', {
+            stroke: '#0d0805',
+            strokeThickness: strokePx,
+            backgroundColor: 'rgba(14,9,6,0.88)',
+            padding: { x: 4 * s, y: 2.5 * s },
+          })
+        )
+        .setOrigin(1, 0);
+
+      this.debugGroup.add([btnCoins, btnDay, btnSeeds, this.debugAudioText]);
       this.hudRoot.add(this.debugGroup);
+
+      this._refreshDebugAudioOverlay();
+      this._debugAudioTimer = this.time.addEvent({
+        delay: 250,
+        loop: true,
+        callback: () => this._refreshDebugAudioOverlay(),
+      });
     }
+  }
+
+  _refreshDebugAudioOverlay() {
+    if (!this.debugAudioText) return;
+    const snap = AudioManager.getActiveSoundsSnapshot();
+    const mPct = Math.round((snap.musicLevel ?? 0) * 100);
+    const aPct = Math.round((snap.ambienceLevel ?? 0) * 100);
+    const sPct = Math.round((snap.sfxLevel ?? 0) * 100);
+    const status = snap.muted ? 'MUTE' : 'ON';
+    const lines = [`AUDIO [${status}] BGM:${mPct}% Alam:${aPct}% SFX:${sPct}%`];
+
+    if (!snap.active || snap.active.length === 0) {
+      lines.push('• (tidak ada suara aktif)');
+    } else {
+      for (let i = 0; i < snap.active.length; i += 1) {
+        const it = snap.active[i];
+        lines.push(`• ${it.category}: ${it.key} (vol ${it.volume.toFixed(2)})`);
+      }
+    }
+    this.debugAudioText.setText(lines.join('\n'));
   }
 
   _drawFishingBar(progressRatio = 1) {
@@ -562,13 +707,21 @@ export class UIScene extends Phaser.Scene {
     const s = this.uiScale;
     const c = this.add.container(0, 0);
     const bg = this.add.graphics();
-    bg.fillStyle(UI.PANEL_BG, 0.9);
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 3 * s);
-    bg.lineStyle(1.2 * s, UI.PANEL_BORDER, 1);
-    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 3 * s);
+    bg.fillStyle(UI.PANEL_BG, 0.94);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 3.5 * s);
+    bg.lineStyle(1.4 * s, UI.PANEL_BORDER, 1);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 3.5 * s);
 
     const txt = this.add
-      .text(0, 0, label, pixelTextStyle(fontPx, '#fff6e0'))
+      .text(
+        0,
+        0,
+        label,
+        pixelTextStyle(fontPx, '#fff6e0', {
+          stroke: '#120b07',
+          strokeThickness: Math.max(2, Math.round(1.2 * s)),
+        })
+      )
       .setOrigin(0.5);
 
     const zone = this.add
@@ -591,8 +744,9 @@ export class UIScene extends Phaser.Scene {
 
   _updateAudioPopoverLabels() {
     const cfg = AudioManager.getSettings();
-    const musicPct = Math.round(cfg.musicLevel * 100);
-    const sfxPct = Math.round(cfg.sfxLevel * 100);
+    const musicPct = Math.round((cfg.musicLevel ?? 0.75) * 100);
+    const ambPct = Math.round((cfg.ambienceLevel ?? 0.5) * 100);
+    const sfxPct = Math.round((cfg.sfxLevel ?? 0.75) * 100);
     if (this.btnAudio?._txt) {
       this.btnAudio._txt.setText(cfg.muted ? 'Mute▾' : 'Suara▾');
       this.btnAudio._txt.setColor(cfg.muted ? '#ff9b85' : '#fff6e0');
@@ -604,7 +758,10 @@ export class UIScene extends Phaser.Scene {
       this.btnPopMute._txt.setColor(cfg.muted ? '#ff9b85' : '#a8f0a0');
     }
     if (this.btnPopMusic?._txt) {
-      this.btnPopMusic._txt.setText(`Musik: ${musicPct}%`);
+      this.btnPopMusic._txt.setText(`BGM: ${musicPct}%`);
+    }
+    if (this.btnPopAmbience?._txt) {
+      this.btnPopAmbience._txt.setText(`Alam: ${ambPct}%`);
     }
     if (this.btnPopSfx?._txt) {
       this.btnPopSfx._txt.setText(`SFX: ${sfxPct}%`);
@@ -613,15 +770,27 @@ export class UIScene extends Phaser.Scene {
 
   _spawnFloatingText(x, y, text, color = '#ffd866') {
     const s = this.uiScale || 1;
-    const fontPx = Math.max(11, Math.round(6.8 * s));
+    const F = UI.FONT || {};
+    const fontPx = Math.max(
+      F.MIN_FLOATING_PX || 26,
+      Math.round((F.FLOATING || 14) * s)
+    );
     const floater = this.add
-      .text(x, y, text, pixelTextStyle(fontPx, color))
+      .text(
+        x,
+        y,
+        text,
+        pixelTextStyle(fontPx, color, {
+          stroke: '#120b07',
+          strokeThickness: Math.max(2, Math.round(1.3 * s)),
+        })
+      )
       .setOrigin(0.5)
       .setDepth(420);
 
     this.tweens.add({
       targets: floater,
-      y: y - 18 * s,
+      y: y - 20 * s,
       alpha: 0,
       duration: 850,
       ease: 'Cubic.easeOut',
@@ -637,10 +806,10 @@ export class UIScene extends Phaser.Scene {
       const { bg, slotW, slotH } = slot;
       const isActive = idx === activeIdx;
       bg.clear();
-      bg.fillStyle(isActive ? UI.PANEL_INNER : UI.SLOT_BG, 0.92);
+      bg.fillStyle(isActive ? UI.PANEL_INNER : UI.SLOT_BG, 0.94);
       bg.fillRoundedRect(-slotW / 2, -slotH / 2, slotW, slotH, 4 * s);
       bg.lineStyle(
-        (isActive ? 2 : 1) * s,
+        (isActive ? 2 : 1.2) * s,
         isActive ? UI.SLOT_ACTIVE_BORDER : UI.PANEL_BORDER,
         1
       );
@@ -674,28 +843,28 @@ export class UIScene extends Phaser.Scene {
     }
 
     // In narrow/portrait orientation, stack top-right utility buttons on a second row so they never overlap top-left bar
-    const isNarrowTop = w < 410 * s;
-    const topBtnY = isNarrowTop ? safeY + 31 * s : safeY + 10 * s;
+    const isNarrowTop = w < 500 * s;
+    const topBtnY = isNarrowTop ? safeY + 38 * s : safeY + 12 * s;
     if (this.btnMenu) {
-      this.btnMenu.setPosition(w - safeX - 19 * s, topBtnY);
+      this.btnMenu.setPosition(w - safeX - 23 * s, topBtnY);
     }
     if (this.btnTileset) {
-      this.btnTileset.setPosition(w - safeX - 63 * s, topBtnY);
+      this.btnTileset.setPosition(w - safeX - 76 * s, topBtnY);
     }
     if (this.btnAudio) {
-      this.btnAudio.setPosition(w - safeX - 110 * s, topBtnY);
+      this.btnAudio.setPosition(w - safeX - 133 * s, topBtnY);
     }
     if (this.audioPopover) {
-      this.audioPopover.setPosition(w - safeX, topBtnY + 11 * s);
+      this.audioPopover.setPosition(w - safeX, topBtnY + 13 * s);
     }
     if (this.debugGroup) {
-      this.debugGroup.setPosition(w - safeX - 114 * s, topBtnY + 19 * s);
+      this.debugGroup.setPosition(w - safeX - 134 * s, topBtnY + 23 * s);
     }
 
     // In narrow/portrait orientation, lift the bottom-center toolbar above the corner touch controls
-    const isNarrowBottom = w < 380 * s;
+    const isNarrowBottom = w < 420 * s;
     const toolbarY = isNarrowBottom
-      ? h - safeY - 96 * s - this.toolbarSlotH / 2
+      ? h - safeY - 98 * s - this.toolbarSlotH / 2
       : h - safeY - this.toolbarSlotH / 2;
 
     if (this.toolSlots && this.toolSlots.length > 0) {
@@ -712,13 +881,13 @@ export class UIScene extends Phaser.Scene {
     if (this.hintText) {
       this.hintText.setPosition(
         w / 2,
-        toolbarY - this.toolbarSlotH / 2 - 9 * s
+        toolbarY - this.toolbarSlotH / 2 - 12 * s
       );
     }
     if (this.toastText) {
       this.toastText.setPosition(
         w / 2,
-        isNarrowTop ? safeY + 50 * s : safeY + 31 * s
+        isNarrowTop ? safeY + 62 * s : safeY + 38 * s
       );
     }
     if (this.touchControls) {
@@ -991,6 +1160,10 @@ export class UIScene extends Phaser.Scene {
       eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
+      if (this._debugAudioTimer) {
+        this._debugAudioTimer.remove(false);
+        this._debugAudioTimer = null;
+      }
       if (this.touchControls) this.touchControls.destroy();
       if (this.shopModal) this.shopModal.destroy();
     });

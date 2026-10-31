@@ -349,13 +349,24 @@ class AudioManagerClass {
   }
 
   _crossfadeTracks(oldSound, newSound, targetVol, timerProp) {
+    const fadingProp =
+      timerProp === '_bgmFadeTimer' ? '_fadingBgm' : '_fadingAmbience';
     if (this[timerProp]) {
       clearInterval(this[timerProp]);
       this[timerProp] = null;
     }
+    if (this[fadingProp] && this[fadingProp] !== oldSound) {
+      this._destroySoundSafe(this[fadingProp]);
+    }
+    this[fadingProp] = oldSound || null;
+
     const steps = 8;
-    const stepMs = Math.max(25, Math.round((AUDIO_CONFIG.CROSSFADE_MS || 400) / steps));
-    const startOldVol = typeof oldSound?.volume === 'number' ? oldSound.volume : 0.3;
+    const stepMs = Math.max(
+      25,
+      Math.round((AUDIO_CONFIG.CROSSFADE_MS || 400) / steps)
+    );
+    const startOldVol =
+      typeof oldSound?.volume === 'number' ? oldSound.volume : 0.3;
     let step = 0;
 
     this[timerProp] = setInterval(() => {
@@ -375,17 +386,26 @@ class AudioManagerClass {
       if (step >= steps) {
         clearInterval(this[timerProp]);
         this[timerProp] = null;
+        if (this[fadingProp] === oldSound) {
+          this[fadingProp] = null;
+        }
         this._destroySoundSafe(oldSound);
       }
     }, stepMs);
   }
 
   _fadeOutAndDestroy(soundObj, timerProp) {
-    if (!soundObj) return;
+    const fadingProp =
+      timerProp === '_bgmFadeTimer' ? '_fadingBgm' : '_fadingAmbience';
     if (this[timerProp]) {
       clearInterval(this[timerProp]);
       this[timerProp] = null;
     }
+    if (this[fadingProp] && this[fadingProp] !== soundObj) {
+      this._destroySoundSafe(this[fadingProp]);
+      this[fadingProp] = null;
+    }
+    if (!soundObj) return;
     this._destroySoundSafe(soundObj);
   }
 
@@ -404,6 +424,10 @@ class AudioManagerClass {
       clearInterval(this._bgmFadeTimer);
       this._bgmFadeTimer = null;
     }
+    if (this._fadingBgm) {
+      this._destroySoundSafe(this._fadingBgm);
+      this._fadingBgm = null;
+    }
     if (this.currentBgm) {
       const old = this.currentBgm;
       this.currentBgm = null;
@@ -421,6 +445,10 @@ class AudioManagerClass {
       clearInterval(this._ambFadeTimer);
       this._ambFadeTimer = null;
     }
+    if (this._fadingAmbience) {
+      this._destroySoundSafe(this._fadingAmbience);
+      this._fadingAmbience = null;
+    }
     if (this.currentAmbience) {
       const old = this.currentAmbience;
       this.currentAmbience = null;
@@ -433,30 +461,169 @@ class AudioManagerClass {
     }
   }
 
+  _pruneActiveSfx() {
+    for (const [key, list] of this.activeSfx.entries()) {
+      const alive = list.filter((entry) => entry?.sound && entry.sound.isPlaying);
+      if (alive.length > 0) {
+        this.activeSfx.set(key, alive);
+      } else {
+        this.activeSfx.delete(key);
+      }
+    }
+  }
+
   /**
    * Plays a one-shot SFX key registered in `src/data/assetKeys.js`.
+   * Enforces max 1-2 active instances per key and stops previous instance
+   * if re-triggered within `AUDIO_CONFIG.SFX_RETRIGGER_RESTART_MS`.
    */
   playSfx(sfxKey) {
     if (!this.sound || this.muted || this.sfxLevel <= 0 || !sfxKey) return;
     if (!this._hasAudioInCache(sfxKey)) return;
 
+    this._pruneActiveSfx();
+
     const sfxCfg = AUDIO_CONFIG.SFX_SETTINGS[sfxKey] || {};
+    const defSfx = AUDIO_CONFIG.DEFAULT_SFX_LEVEL || 0.75;
     const vol = Math.min(
       1,
-      (sfxCfg.volume ?? 1) * AUDIO_CONFIG.SFX_VOLUME * (this.sfxLevel / 0.75)
+      (sfxCfg.volume ?? 1) * AUDIO_CONFIG.SFX_VOLUME * (this.sfxLevel / defSfx)
     );
+    if (vol <= 0) return;
+
+    const now =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const retriggerMs = AUDIO_CONFIG.SFX_RETRIGGER_RESTART_MS ?? 140;
+    const maxForKey = Math.max(
+      1,
+      Math.min(
+        2,
+        sfxCfg.maxInstances ?? AUDIO_CONFIG.MAX_CONCURRENT_PER_SFX ?? 1
+      )
+    );
+
+    const list = this.activeSfx.get(sfxKey) || [];
+
+    // Stop previous instance if re-triggered within short window
+    if (list.length > 0) {
+      const newest = list[list.length - 1];
+      if (now - newest.startedAt < retriggerMs) {
+        list.pop();
+        this._destroySoundSafe(newest.sound);
+      }
+    }
+
+    // Enforce per-key max active instances (1-2)
+    while (list.length >= maxForKey) {
+      const oldest = list.shift();
+      this._destroySoundSafe(oldest?.sound);
+    }
+
+    // Enforce global active SFX cap
+    const globalMax = AUDIO_CONFIG.SFX_GLOBAL_MAX_ACTIVE ?? 6;
+    let totalActive = 0;
+    for (const arr of this.activeSfx.values()) {
+      totalActive += arr.length;
+    }
+    if (totalActive >= globalMax) {
+      let oldestKey = null;
+      let oldestTime = Infinity;
+      for (const [k, arr] of this.activeSfx.entries()) {
+        if (arr.length > 0 && arr[0].startedAt < oldestTime) {
+          oldestTime = arr[0].startedAt;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) {
+        const arr = this.activeSfx.get(oldestKey);
+        const oldEntry = arr.shift();
+        this._destroySoundSafe(oldEntry?.sound);
+        if (arr.length === 0) this.activeSfx.delete(oldestKey);
+      }
+    }
+
     const detune = sfxCfg.detuneJitter
       ? (Math.random() * 2 - 1) * sfxCfg.detuneJitter
       : 0;
 
     try {
-      this.sound.play(sfxKey, {
+      const sfxInstance = this.sound.add(sfxKey, {
         volume: vol,
         detune,
       });
+      const entry = {
+        sound: sfxInstance,
+        startedAt: now,
+        volume: vol,
+      };
+      list.push(entry);
+      this.activeSfx.set(sfxKey, list);
+
+      const cleanup = () => {
+        const cur = this.activeSfx.get(sfxKey);
+        if (cur) {
+          const next = cur.filter((item) => item !== entry);
+          if (next.length > 0) {
+            this.activeSfx.set(sfxKey, next);
+          } else {
+            this.activeSfx.delete(sfxKey);
+          }
+        }
+        try {
+          sfxInstance.destroy();
+        } catch {
+          // ignore
+        }
+      };
+
+      sfxInstance.once('complete', cleanup);
+      sfxInstance.play();
     } catch {
       // Ignore playback errors prior to unlock
     }
+  }
+
+  /**
+   * Returns a live snapshot of currently playing BGM, Ambience, and SFX instances
+   * with their effective volumes for the `?debug=1` audio monitor overlay.
+   */
+  getActiveSoundsSnapshot() {
+    this._pruneActiveSfx();
+    const active = [];
+
+    if (this.currentBgm && this.currentBgm.isPlaying) {
+      active.push({
+        category: 'BGM',
+        key: this.currentBgmKey || 'bgm',
+        volume: Number(this.currentBgm.volume ?? 0),
+      });
+    }
+    if (this.currentAmbience && this.currentAmbience.isPlaying) {
+      active.push({
+        category: 'AMB',
+        key: this.currentAmbienceKey || 'ambience',
+        volume: Number(this.currentAmbience.volume ?? 0),
+      });
+    }
+    for (const [key, list] of this.activeSfx.entries()) {
+      for (const item of list) {
+        if (item?.sound && item.sound.isPlaying) {
+          active.push({
+            category: 'SFX',
+            key,
+            volume: Number(item.sound.volume ?? item.volume ?? 0),
+          });
+        }
+      }
+    }
+
+    return {
+      muted: this.muted,
+      musicLevel: this.musicLevel,
+      ambienceLevel: this.ambienceLevel,
+      sfxLevel: this.sfxLevel,
+      active,
+    };
   }
 
   _applyVolumesToActiveTracks() {
@@ -505,6 +672,25 @@ class AudioManagerClass {
     if (idx < 0) idx = 3;
     const nextIdx = (idx + direction + steps.length) % steps.length;
     return this.setMusicLevel(steps[nextIdx]);
+  }
+
+  setAmbienceLevel(level) {
+    this.ambienceLevel = Math.max(0, Math.min(1, Number(level) || 0));
+    if (this.ambienceLevel > 0 && this.muted) {
+      this.muted = false;
+    }
+    this._applyVolumesToActiveTracks();
+    this._saveSettings();
+    eventBus.emit(EVENTS.AUDIO_SETTINGS_CHANGED, this.getSettings());
+    return this.ambienceLevel;
+  }
+
+  cycleAmbienceLevel(direction = 1) {
+    const steps = AUDIO_CONFIG.VOLUME_STEPS || [0, 0.25, 0.5, 0.75, 1.0];
+    let idx = steps.findIndex((v) => Math.abs(v - this.ambienceLevel) < 0.05);
+    if (idx < 0) idx = 2;
+    const nextIdx = (idx + direction + steps.length) % steps.length;
+    return this.setAmbienceLevel(steps[nextIdx]);
   }
 
   setSfxLevel(level) {

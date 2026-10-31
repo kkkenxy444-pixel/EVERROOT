@@ -121,27 +121,48 @@ export class MenuScene extends Phaser.Scene {
 
   _buildHeader(w, h, s) {
     const cx = w / 2;
+    const F = UI.FONT || {};
+    const titlePx = Math.max(
+      F.MIN_MENU_TITLE_PX || 38,
+      Math.round((F.MENU_TITLE || 22) * s)
+    );
+    const subPx = Math.max(
+      F.MIN_MENU_SUB_PX || 26,
+      Math.round((F.MENU_SUBTITLE || 14) * s)
+    );
+    const strokePx = Math.max(2, Math.round(1.2 * s));
 
     // Game branding icon (`ui/branding/game_icon_primary.png`, 1536x1536 -> 44*s x 44*s)
     const iconFrame = this.add.graphics();
     iconFrame.fillStyle(UI.PANEL_BG, 1);
-    iconFrame.fillRoundedRect(cx - 25 * s, 16 * s, 50 * s, 50 * s, 5 * s);
+    iconFrame.fillRoundedRect(cx - 25 * s, 12 * s, 50 * s, 50 * s, 5 * s);
     iconFrame.lineStyle(2 * s, UI.ACCENT, 1);
-    iconFrame.strokeRoundedRect(cx - 25 * s, 16 * s, 50 * s, 50 * s, 5 * s);
+    iconFrame.strokeRoundedRect(cx - 25 * s, 12 * s, 50 * s, 50 * s, 5 * s);
 
-    const icon = this.add.image(cx, 41 * s, ASSET_KEYS.UI_GAME_ICON);
+    const icon = this.add.image(cx, 37 * s, ASSET_KEYS.UI_GAME_ICON);
     icon.setDisplaySize(44 * s, 44 * s);
 
     const titleTxt = this.add
-      .text(cx, 78 * s, GAME.TITLE.toUpperCase(), pixelTextStyle(18 * s, '#f2c14e'))
+      .text(
+        cx,
+        74 * s,
+        GAME.TITLE.toUpperCase(),
+        pixelTextStyle(titlePx, '#f2c14e', {
+          stroke: '#120b07',
+          strokeThickness: strokePx + 1,
+        })
+      )
       .setOrigin(0.5);
 
     const subTxt = this.add
       .text(
         cx,
-        96 * s,
+        95 * s,
         'Bertani • Memancing • Menjelajah',
-        pixelTextStyle(Math.max(12, 7.5 * s), '#d9c4a9')
+        pixelTextStyle(subPx, '#f0dfc8', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
       )
       .setOrigin(0.5);
 
@@ -152,9 +173,17 @@ export class MenuScene extends Phaser.Scene {
     const cx = w / 2;
     const hasSave = SaveSystem.hasSave();
     const savedState = hasSave ? SaveSystem.load() : null;
+    const F = UI.FONT || {};
+    const btnFontPx = Math.max(
+      F.MIN_BUTTON_PX || 26,
+      Math.round((F.BUTTON || 14) * s)
+    );
 
-    let y = 120 * s;
-    const spacing = 25 * s;
+    let y = 122 * s;
+    const btnH = Math.max(48, 25 * s);
+    const spacing = btnH + 6 * s;
+    const wideW = Math.min(w - 20 * s, 268 * s);
+    const stdW = Math.min(w - 24 * s, 216 * s);
 
     if (hasSave && savedState) {
       const hh = String(savedState.hour ?? 6).padStart(2, '0');
@@ -162,14 +191,15 @@ export class MenuScene extends Phaser.Scene {
       this._createMenuButton(
         cx,
         y,
-        212 * s,
-        21 * s,
+        wideW,
+        btnH,
         s,
         `Lanjut (Hari ${savedState.day} • ${hh}:${mm} • ${savedState.coins}G)`,
         0x4e7a3e,
         () => {
           this._transitionTo(SCENE_KEYS.GAME, { mode: 'continue' });
-        }
+        },
+        btnFontPx
       );
       y += spacing;
     }
@@ -177,15 +207,16 @@ export class MenuScene extends Phaser.Scene {
     this._createMenuButton(
       cx,
       y,
-      180 * s,
-      21 * s,
+      stdW,
+      btnH,
       s,
       hasSave ? 'Mulai Baru' : 'Mulai',
       hasSave ? UI.PANEL_INNER : 0x4e7a3e,
       () => {
         SaveSystem.clear();
         this._transitionTo(SCENE_KEYS.GAME, { mode: 'new' });
-      }
+      },
+      btnFontPx
     );
     y += spacing;
 
@@ -193,8 +224,8 @@ export class MenuScene extends Phaser.Scene {
       this._createMenuButton(
         cx,
         y,
-        180 * s,
-        19 * s,
+        stdW,
+        btnH,
         s,
         'Hapus Save',
         0x7a342c,
@@ -202,16 +233,17 @@ export class MenuScene extends Phaser.Scene {
           SaveSystem.clear();
           AudioManager.playSfx(ASSET_KEYS.SFX_UI_CANCEL);
           this._renderMenu();
-        }
+        },
+        btnFontPx
       );
-      y += 23 * s;
+      y += spacing;
     }
 
     this._createMenuButton(
       cx,
       y,
-      180 * s,
-      19 * s,
+      stdW,
+      btnH,
       s,
       'Cek Tileset (Debug)',
       0x3b485e,
@@ -219,82 +251,135 @@ export class MenuScene extends Phaser.Scene {
         this._transitionTo(SCENE_KEYS.TILESET_DEBUG, {
           returnScene: SCENE_KEYS.MENU,
         });
-      }
+      },
+      btnFontPx
     );
   }
 
   /**
-   * Compact Audio Settings bar in MenuScene (Mute toggle, Music Volume, SFX Volume)
+   * Compact Audio Settings bar in MenuScene (Mute toggle, BGM, Ambience, SFX)
    * persisted in `everroot_v1_audio_settings` via `AudioManager`.
    */
   _buildAudioSettingsBar(w, h, s) {
     const cfg = AudioManager.getSettings();
-    const musicPct = Math.round(cfg.musicLevel * 100);
-    const sfxPct = Math.round(cfg.sfxLevel * 100);
+    const musicPct = Math.round((cfg.musicLevel ?? 0.75) * 100);
+    const ambPct = Math.round((cfg.ambienceLevel ?? 0.5) * 100);
+    const sfxPct = Math.round((cfg.sfxLevel ?? 0.75) * 100);
+    const F = UI.FONT || {};
+    const smFontPx = Math.max(
+      F.MIN_BUTTON_SM_PX || 26,
+      Math.round((F.BUTTON_SM || 13) * s)
+    );
+
     const cx = w / 2;
-    const barY = h - 38 * s;
-    const btnW = 72 * s;
-    const btnH = 18 * s;
+    const isNarrow = w < 380 * s;
+    const btnH = Math.max(44, 22 * s);
     const gap = 6 * s;
 
-    this._createMenuButton(
-      cx - btnW - gap,
-      barY,
-      btnW,
-      btnH,
-      s,
-      cfg.muted ? 'Suara: MUTE' : 'Suara: AKTIF',
-      cfg.muted ? 0x7a342c : 0x3b2618,
-      () => {
-        AudioManager.toggleMute();
-        this._renderMenu();
-      }
-    );
+    const items = [
+      {
+        label: cfg.muted ? 'Suara: MUTE' : 'Suara: AKTIF',
+        color: cfg.muted ? 0x7a342c : 0x3b2618,
+        action: () => {
+          AudioManager.toggleMute();
+          this._renderMenu();
+        },
+      },
+      {
+        label: `BGM: ${musicPct}%`,
+        color: 0x3b2618,
+        action: () => {
+          AudioManager.cycleMusicLevel(1);
+          this._renderMenu();
+        },
+      },
+      {
+        label: `Alam: ${ambPct}%`,
+        color: 0x3b2618,
+        action: () => {
+          AudioManager.cycleAmbienceLevel(1);
+          this._renderMenu();
+        },
+      },
+      {
+        label: `SFX: ${sfxPct}%`,
+        color: 0x3b2618,
+        action: () => {
+          AudioManager.cycleSfxLevel(1);
+          this._renderMenu();
+        },
+      },
+    ];
 
-    this._createMenuButton(
-      cx,
-      barY,
-      btnW,
-      btnH,
-      s,
-      `Musik: ${musicPct}%`,
-      0x3b2618,
-      () => {
-        AudioManager.cycleMusicLevel(1);
-        this._renderMenu();
-      }
-    );
-
-    this._createMenuButton(
-      cx + btnW + gap,
-      barY,
-      btnW,
-      btnH,
-      s,
-      `SFX: ${sfxPct}%`,
-      0x3b2618,
-      () => {
-        AudioManager.cycleSfxLevel(1);
-        this._renderMenu();
-      }
-    );
+    if (isNarrow) {
+      const btnW = Math.floor((w - 24 * s - gap) / 2);
+      const row1Y = h - 68 * s;
+      const row2Y = row1Y + btnH + 5 * s;
+      items.forEach((it, idx) => {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const bx = cx + (col === 0 ? -(btnW / 2 + gap / 2) : btnW / 2 + gap / 2);
+        const by = row === 0 ? row1Y : row2Y;
+        this._createMenuButton(
+          bx,
+          by,
+          btnW,
+          btnH,
+          s,
+          it.label,
+          it.color,
+          it.action,
+          smFontPx
+        );
+      });
+    } else {
+      const btnW = 86 * s;
+      const totalW = items.length * btnW + (items.length - 1) * gap;
+      const startX = cx - totalW / 2 + btnW / 2;
+      const barY = h - 40 * s;
+      items.forEach((it, idx) => {
+        this._createMenuButton(
+          startX + idx * (btnW + gap),
+          barY,
+          btnW,
+          btnH,
+          s,
+          it.label,
+          it.color,
+          it.action,
+          smFontPx
+        );
+      });
+    }
   }
 
-  _createMenuButton(x, y, w, h, s, label, fillColor, onClick) {
+  _createMenuButton(x, y, w, h, s, label, fillColor, onClick, customFontPx) {
     const c = this.add.container(x, y);
     const bg = this.add.graphics();
+    const F = UI.FONT || {};
+    const fontPx =
+      customFontPx ||
+      Math.max(F.MIN_BUTTON_PX || 26, Math.round((F.BUTTON || 14) * s));
 
     const draw = (hover) => {
       bg.clear();
-      bg.fillStyle(hover ? 0xc87d3b : fillColor, 1);
+      bg.fillStyle(hover ? 0xc87d3b : fillColor, 0.96);
       bg.fillRoundedRect(-w / 2, -h / 2, w, h, 4 * s);
-      bg.lineStyle(1.5 * s, hover ? 0xffffff : UI.PANEL_BORDER, 1);
+      bg.lineStyle(1.6 * s, hover ? 0xffffff : UI.PANEL_BORDER, 1);
       bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 4 * s);
     };
     draw(false);
 
     const txt = this.add
-      .text(0, 0, label, pixelTextStyle(Math.max(11, 7.2 * s), '#fff6e0'))
+      .text(
+        0,
+        0,
+        label,
+        pixelTextStyle(fontPx, '#fff6e0', {
+          stroke: '#120b07',
+          strokeThickness: Math.max(2, Math.round(1.2 * s)),
+        })
+      )
       .setOrigin(0.5);
 
     const zone = this.add
@@ -316,18 +401,27 @@ export class MenuScene extends Phaser.Scene {
   }
 
   _buildFooter(w, h, s) {
+    const F = UI.FONT || {};
+    const footPx = Math.max(
+      F.MIN_HUD_SMALL_PX || 22,
+      Math.round((F.HUD_SMALL || 12) * s)
+    );
     const footerMsg =
       this.failedAssetCount > 0
-        ? `Peringatan: ${this.failedAssetCount} aset gagal dimuat (memakai fallback) • Tap layar untuk audio`
-        : 'Tap layar untuk aktifkan audio • WASD/Sentuh untuk jalan • Spasi/E/AKSI';
+        ? `Peringatan: ${this.failedAssetCount} aset gagal dimuat • Tap layar untuk audio`
+        : 'Tap layar untuk audio • WASD/Sentuh untuk jalan • Spasi/E/AKSI';
     const footer = this.add
       .text(
         w / 2,
-        h - 16 * s,
+        h - 14 * s,
         footerMsg,
         pixelTextStyle(
-          Math.max(11, 6.2 * s),
-          this.failedAssetCount > 0 ? '#ff9b85' : '#b8a088'
+          footPx,
+          this.failedAssetCount > 0 ? '#ff9b85' : '#e0cbb5',
+          {
+            stroke: '#120b07',
+            strokeThickness: Math.max(2, Math.round(s)),
+          }
         )
       )
       .setOrigin(0.5);

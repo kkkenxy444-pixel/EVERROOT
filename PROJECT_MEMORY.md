@@ -46,15 +46,18 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 - **M2**: `Crop`, `FarmingSystem`, `TimeSystem`, tidur + fade + autosave, `SaveSystem`.
 - **M3**: `InventorySystem`, `ShopModal` (mode sell/buy), `FishingSystem` (state machine idle -> casting -> waiting -> bite -> reeling -> caught), mode debug `?debug=1`.
 - **M4**: `AudioManager` + `audioConfig.js` (BGM per scene dan fase waktu, ambience per fase, crossfade, pause saat tab hidden, pengaturan mute/musik/SFX di `localStorage` `everroot_v1_audio_settings`), popover `Suara▾`, floating text, `README.md`, rebalancing mancing.
+- **Perbaikan Font/UI & Audit Audio (`[SELESAI-BUILD]`, belum dites HP)**:
+  - **Font & UI**: Konstanta `UI.FONT` (`gameConfig.js`) + `getTextResolution()` (`FontLoader.js`) diterapkan ke `ShopModal`, `UIScene`, `MenuScene`, `TouchControls`, dan `WorldBuilder`. Pada 1612x720 (`uiScale=2`): teks isi modal 30px, sub-info ("Harga • Tas: n") 28px, label tombol 26-28px, toast/hint 28px, indikator mancing 30px, label bangunan 27px (`9px * zoom 3`). `ShopModal` lebar 84% layar (landscape) / 92% (portrait), tombol Jual/Beli tinggi >= 56px fisik, daftar dapat di-scroll (geser/wheel/keyboard) dengan scrollbar, tombol nonaktif kontras tinggi (`#2b231d` / `#8c7a6b` / `#dcd3c8` + outline `#120b07`).
+  - **Audio**: Volume terpisah per kategori (BGM, Alam/Ambience, SFX) di `AudioManager`, `MenuScene`, dan popover `Suara▾` (`UIScene`). Batas 1-2 instance aktif per key SFX + stop instance lama bila dipicu ulang < `140ms` (`SFX_RETRIGGER_RESTART_MS`). `audio/ambience/stream.wav` (`AMB_STREAM`) dinonaktifkan secara default (`siang`/`sore` = `null`) karena broadband noise (RMS 0.1195) dan lompatan titik loop kanal kanan (`delta 0.1035`). Mode `?debug=1` menampilkan overlay daftar suara aktif beserta volumenya.
 
 ## 6. Peta Kode
 - `src/main.js` (Game config, listener resize/orientationchange/visualViewport + `scale.refresh()`), `src/style.css` (layar penuh, canvas 100%).
 - **data/**: `gameConfig.js` (semua konstanta + helper `getWorldZoom`, `getUiScale`, `getPhysicalCanvasSize`, `isDebugModeEnabled`), `assetKeys.js` (key + path + frame 126 aset), `tileIndex.js` (index tile terverifikasi), `audioConfig.js` (BGM/ambience/SFX), `crops.js`, `items.js` (alat, item, 3 ikan).
-- **scenes/**: `BootScene` (muat font), `PreloadScene`, `MenuScene`, `GameScene` (rakit world/player/sistem, kamera, overlay waktu, buka ShopModal, tidur), `UIScene` (HUD 1 baris, inventory 12 slot, toast, indikator pancing, toolbar, TouchControls, ShopModal, popover Suara), `TilesetDebugScene`.
+- **scenes/**: `BootScene` (muat font), `PreloadScene`, `MenuScene`, `GameScene` (rakit world/player/sistem, kamera, overlay waktu, buka ShopModal, tidur), `UIScene` (HUD 1 baris, inventory 12 slot, toast, indikator pancing, toolbar, TouchControls, ShopModal, popover Suara, overlay debug audio), `TilesetDebugScene`.
 - **entities/**: `Player` (container 3 layer, aksi terkunci, debu langkah), `Crop` (petak + tanaman).
 - **systems/**: `EventBus`, `FontLoader`, `AudioManager`, `SaveSystem`, `InputSystem`, `WorldBuilder` (tilemap 4 layer, `isWaterTile`, label bangunan saat dekat), `InventorySystem`, `FarmingSystem`, `FishingSystem`, `TimeSystem`.
 - **ui/**: `TouchControls`, `ShopModal`.
-- **Event (`EVENTS` di EventBus.js)**: INPUT_ACTION, INPUT_CYCLE_TOOL/SEED, INPUT_SELECT_TOOL, TOUCH_DETECTED, TOOL_CHANGED, SEED_CHANGED, INVENTORY_ITEM_ADDED/REMOVED, INVENTORY_UPDATED, COINS_CHANGED, OPEN_SHOP/CLOSE_SHOP, SHOP_BUY_ITEM/SELL_ITEM, FARM_PLOT_UPDATED, FARM_ACTION_FEEDBACK, FISHING_STATE_CHANGED, FISHING_CAUGHT, TIME_UPDATED, PHASE_CHANGED, CONFIRM_SLEEP, DAY_ADVANCED, GAME_SAVED, INTERACTION_HINT, TOAST_MESSAGE, PLAY_SFX, AUDIO_MUTED_CHANGED, DEBUG_ADD_COINS/NEXT_DAY/FILL_SEEDS.
+- **Event (`EVENTS` di EventBus.js)**: INPUT_ACTION, INPUT_CYCLE_TOOL/SEED, INPUT_SELECT_TOOL, TOUCH_DETECTED, TOOL_CHANGED, SEED_CHANGED, INVENTORY_ITEM_ADDED/REMOVED, INVENTORY_UPDATED, COINS_CHANGED, OPEN_SHOP/CLOSE_SHOP, SHOP_BUY_ITEM/SELL_ITEM, FARM_PLOT_UPDATED, FARM_ACTION_FEEDBACK, FISHING_STATE_CHANGED, FISHING_CAUGHT, TIME_UPDATED, PHASE_CHANGED, CONFIRM_SLEEP, DAY_ADVANCED, GAME_SAVED, INTERACTION_HINT, TOAST_MESSAGE, PLAY_SFX, AUDIO_MUTED_CHANGED, AUDIO_SETTINGS_CHANGED, DEBUG_ADD_COINS/NEXT_DAY/FILL_SEEDS.
 
 ## 7. Konvensi
 1. Pisahkan `scenes`, `entities`, `systems`, `ui`, `data`. Tiap fitur = system terpisah, komunikasi lewat `eventBus`, tanpa saling import langsung.
@@ -63,17 +66,17 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 4. Jangan alokasi objek baru di `update()`. Lepas listener `eventBus` saat scene SHUTDOWN.
 
 ## 8. Masalah yang Diketahui
-1. **Font terlalu kecil** di modal jual (harga, "Tas: n", label tombol), toast, dan label bangunan di layar 1612x720. Tombol nonaktif kontrasnya rendah. Modal hanya ~separuh lebar layar.
-2. **Suara berkeresek** (laporan user). Rekaman tidak menunjukkan clipping/klik; desis frekuensi tinggi muncul saat SFX aksi (cangkul/tanam/siram/mancing). Sumber belum pasti: SFX bertumpuk, volume ambience, atau file berisik. Belum ada volume terpisah untuk ambience.
-3. **Harga/keseimbangan ikan**: catatan lama menulis 12/24/50 G, tetapi modal di game terakhir menunjukkan ikan kecil 6 G dan sedang 12 G. Verifikasi nilai di `gameConfig.js` / `items.js`.
-4. Perilaku portrait (zoom dihitung dari tinggi layar) dan multitouch belum dites. `SELESAI-TES-HP` belum dikonfirmasi user.
+1. **Verifikasi di HP belum dilakukan (`[SELESAI-BUILD]`)**: Perubahan ukuran font `UI.FONT`, lebar/scroll `ShopModal`, tinggi tombol 56px, layout portrait, dan perbaikan suara berkeresek belum dikonfirmasi langsung di layar/speaker HP oleh user.
+2. **Sumber desis audio (pasti vs dugaan)**:
+   - *Pasti dari kode/data*: `stream.wav` memiliki noise floor kontinu (RMS `0.1195`) + lompatan loop kanal kanan (`delta 0.1035`), dan sebelumnya `playSfx` tidak membatasi tumpukan instance SFX. Keduanya sudah diperbaiki di kode.
+   - *Dugaan (perlu tes HP)*: Apakah desis saat aksi di speaker HP murni berasal dari tumpukan SFX + `stream.wav`, atau masih ada artefak resampling WebAudio pada sampel WAV 44.1kHz tertentu di browser Android.
+3. **Harga/keseimbangan ikan (terverifikasi di kode)**: Di `gameConfig.js` (`FISHING.FISH_PRICES`) & `items.js`, harga jual ikan memang sudah direbalancing pada M4 menjadi `fish_small = 6G`, `fish_medium = 12G`, `fish_large = 25G` (bukan 12/24/50G dari catatan M3 awal).
+4. Perilaku portrait (zoom dihitung dari tinggi layar) dan multitouch belum dites penuh di HP.
 5. Aset: lihat bagian 3 (ikon JPEG berekstensi .png, TODO_ASSET).
 
 ## 9. Langkah Berikutnya
-1. **Perbaikan font dan UI modal** (konstanta `UI.FONT` min ~28-32 px layar fisik, modal ~80% lebar, tombol >= 56 px, kontras tombol nonaktif).
-2. **Audit suara**: daftar suara aktif, batasi SFX bertumpuk, volume terpisah BGM/ambience/SFX, cek loop, overlay audio di `?debug=1`.
-3. Status tugas 1-2: **tidak pasti** (sesi terputus saat dijalankan; audio sebagian tersentuh, ShopModal dan UIScene belum). Cek `git diff --stat` dan `npm run build` sebelum mengulang.
-4. Setelah itu: konfirmasi tes HP, lalu Paket A (juice, target harian, upgrade) atau Paket B (dunia hidup).
+1. **Konfirmasi tes HP (`[SELESAI-TES-HP]`)**: Uji keterbacaan font & scroll `ShopModal` (landscape 1612x720 & portrait), serta cek apakah suara berkeresek sudah hilang (gunakan `?debug=1` untuk memantau overlay suara aktif).
+2. Setelah konfirmasi tes HP: lanjut ke Paket A (juice/feedback, target harian, upgrade di kios) atau Paket B (hewan dekoratif, burung/ambience, hujan).
 
 ## 10. Log Sesi
 | Tanggal | Model | Pekerjaan | Build |
@@ -81,4 +84,4 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 | 2026-10-31 | Claude Opus 5.5, Gemini 4 Argon | M1 + M2: ekstrak aset, audit, setup Termux, menu, map, player, farming, waktu, tidur, save; pindah ke RESIZE + zoom bulat | Lolos |
 | 2026-10-31 | Gemini 4 Argon | M3: inventory 12 slot, ShopModal, save v2, FishingSystem, `?debug=1` | Lolos (34 modul) |
 | 2026-10-31 | Gemini 4 Argon | M4: AudioManager, popover Suara, floating text, README, rebalancing mancing | Lolos (34 modul) |
-| 2026-10-31 | Gemini 4 Argon | Perbaikan font + audit suara: sesi terputus (agy tertutup). Hasil belum diverifikasi | Lolos (sebagian) |
+| 2026-10-31 | Gemini 4 Argon | Selesaikan perbaikan Font/UI (`ShopModal`, `UIScene`, `MenuScene`) & Audit Audio (`AudioManager` anti-stacking SFX, volume Ambience terpisah, overlay audio `?debug=1`) | Lolos (34 modul) |
