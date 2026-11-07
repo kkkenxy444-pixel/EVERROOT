@@ -1,5 +1,5 @@
 import { ASSET_KEYS, cropStageKey } from './assetKeys.js';
-import { CROPS } from './crops.js';
+import { CROP_LIST, CROPS, getCropUnlockDay, isCropUnlocked } from './crops.js';
 import { FISHING, INVENTORY } from './gameConfig.js';
 
 /**
@@ -73,6 +73,58 @@ export const ITEMS = Object.freeze({
     canSell: false,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+  seed_radish: Object.freeze({
+    id: 'seed_radish',
+    name: 'Bibit Lobak Merah',
+    category: 'seed',
+    cropId: 'radish',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('radish', 5),
+    buyPrice: CROPS.radish.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  seed_potato: Object.freeze({
+    id: 'seed_potato',
+    name: 'Bibit Kentang',
+    category: 'seed',
+    cropId: 'potato',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('potato', 5),
+    buyPrice: CROPS.potato.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  seed_beetroot: Object.freeze({
+    id: 'seed_beetroot',
+    name: 'Bibit Bit',
+    category: 'seed',
+    cropId: 'beetroot',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('beetroot', 5),
+    buyPrice: CROPS.beetroot.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  seed_wheat: Object.freeze({
+    id: 'seed_wheat',
+    name: 'Bibit Gandum',
+    category: 'seed',
+    cropId: 'wheat',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('wheat', 5),
+    buyPrice: CROPS.wheat.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
   seed_sunflower: Object.freeze({
     id: 'seed_sunflower',
     name: 'Bibit Matahari',
@@ -86,6 +138,32 @@ export const ITEMS = Object.freeze({
     canSell: false,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+  seed_cabbage: Object.freeze({
+    id: 'seed_cabbage',
+    name: 'Bibit Kubis',
+    category: 'seed',
+    cropId: 'cabbage',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('cabbage', 5),
+    buyPrice: CROPS.cabbage.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  seed_kale: Object.freeze({
+    id: 'seed_kale',
+    name: 'Bibit Kale',
+    category: 'seed',
+    cropId: 'kale',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('kale', 5),
+    buyPrice: CROPS.kale.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
   seed_pumpkin: Object.freeze({
     id: 'seed_pumpkin',
     name: 'Bibit Labu',
@@ -94,6 +172,19 @@ export const ITEMS = Object.freeze({
     iconKey: ASSET_KEYS.ITEM_SEEDS,
     badgeKey: cropStageKey('pumpkin', 5),
     buyPrice: CROPS.pumpkin.seedPrice,
+    sellPrice: 0,
+    canBuy: true,
+    canSell: false,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  seed_cauliflower: Object.freeze({
+    id: 'seed_cauliflower',
+    name: 'Bibit Kembang Kol',
+    category: 'seed',
+    cropId: 'cauliflower',
+    iconKey: ASSET_KEYS.ITEM_SEEDS,
+    badgeKey: cropStageKey('cauliflower', 5),
+    buyPrice: CROPS.cauliflower.seedPrice,
     sellPrice: 0,
     canBuy: true,
     canSell: false,
@@ -123,6 +214,50 @@ export const ITEMS = Object.freeze({
     canSell: true,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+  crop_radish: Object.freeze({
+    id: 'crop_radish',
+    name: 'Lobak Merah',
+    category: 'crop',
+    iconKey: cropStageKey('radish', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.radish.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  crop_potato: Object.freeze({
+    id: 'crop_potato',
+    name: 'Kentang Kebun',
+    category: 'crop',
+    iconKey: cropStageKey('potato', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.potato.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  crop_beetroot: Object.freeze({
+    id: 'crop_beetroot',
+    name: 'Bit Merah',
+    category: 'crop',
+    iconKey: cropStageKey('beetroot', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.beetroot.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  crop_wheat: Object.freeze({
+    id: 'crop_wheat',
+    name: 'Gandum Emas',
+    category: 'crop',
+    iconKey: cropStageKey('wheat', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.wheat.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
   crop_sunflower: Object.freeze({
     id: 'crop_sunflower',
     name: 'Bunga Matahari',
@@ -134,6 +269,28 @@ export const ITEMS = Object.freeze({
     canSell: true,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+  crop_cabbage: Object.freeze({
+    id: 'crop_cabbage',
+    name: 'Kubis Hijau',
+    category: 'crop',
+    iconKey: cropStageKey('cabbage', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.cabbage.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  crop_kale: Object.freeze({
+    id: 'crop_kale',
+    name: 'Daun Kale',
+    category: 'crop',
+    iconKey: cropStageKey('kale', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.kale.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
   crop_pumpkin: Object.freeze({
     id: 'crop_pumpkin',
     name: 'Labu Emas',
@@ -141,6 +298,17 @@ export const ITEMS = Object.freeze({
     iconKey: cropStageKey('pumpkin', 5),
     buyPrice: 0,
     sellPrice: CROPS.pumpkin.sellPrice,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  crop_cauliflower: Object.freeze({
+    id: 'crop_cauliflower',
+    name: 'Kembang Kol',
+    category: 'crop',
+    iconKey: cropStageKey('cauliflower', 5),
+    buyPrice: 0,
+    sellPrice: CROPS.cauliflower.sellPrice,
     canBuy: false,
     canSell: true,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
@@ -193,19 +361,17 @@ export const LEGACY_FISH_ID_MAP = Object.freeze({
   fish_golden: 'fish_large',
 });
 
-export const SEED_ITEM_IDS = Object.freeze([
-  'seed_parsnip',
-  'seed_carrot',
-  'seed_sunflower',
-  'seed_pumpkin',
-]);
+const ORDERED_CROPS = [...CROP_LIST].sort(
+  (a, b) => getCropUnlockDay(a.id) - getCropUnlockDay(b.id)
+);
 
-export const HARVEST_CROP_ITEM_IDS = Object.freeze([
-  'crop_parsnip',
-  'crop_carrot',
-  'crop_sunflower',
-  'crop_pumpkin',
-]);
+export const SEED_ITEM_IDS = Object.freeze(
+  ORDERED_CROPS.map((crop) => crop.seedItemId)
+);
+
+export const HARVEST_CROP_ITEM_IDS = Object.freeze(
+  ORDERED_CROPS.map((crop) => crop.harvestItemId)
+);
 
 export const FISH_ITEM_IDS = Object.freeze([
   'fish_small',
@@ -217,3 +383,15 @@ export const SELLABLE_ITEM_IDS = Object.freeze([
   ...HARVEST_CROP_ITEM_IDS,
   ...FISH_ITEM_IDS,
 ]);
+
+export function getSeedUnlockDay(seedItemId) {
+  const item = ITEMS[seedItemId];
+  if (!item || item.category !== 'seed' || !item.cropId) return 1;
+  return getCropUnlockDay(item.cropId);
+}
+
+export function isSeedUnlocked(seedItemId, currentDay = 1) {
+  const item = ITEMS[seedItemId];
+  if (!item || item.category !== 'seed' || !item.cropId) return false;
+  return isCropUnlocked(item.cropId, currentDay);
+}

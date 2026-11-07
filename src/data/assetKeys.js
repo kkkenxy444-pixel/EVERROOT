@@ -163,7 +163,7 @@ export const IMAGE_ASSETS = Object.freeze([
   { key: ASSET_KEYS.ITEM_WOOD, path: 'farming/crops/wood.png', width: 11, height: 11 },
   { key: ASSET_KEYS.ITEM_ROCK, path: 'farming/crops/rock.png', width: 10, height: 10 },
 
-  // 4 V1 crops x 6 stages (00..05): parsnip, carrot, pumpkin, sunflower
+  // 11 crops x 6 stages (00..05): 4 V1 crops + 7 Paket 2 crops
   { key: 'crop_parsnip_00', path: 'farming/crops/parsnip_00.png', width: 6, height: 6 },
   { key: 'crop_parsnip_01', path: 'farming/crops/parsnip_01.png', width: 6, height: 6 },
   { key: 'crop_parsnip_02', path: 'farming/crops/parsnip_02.png', width: 8, height: 7 },
@@ -191,6 +191,55 @@ export const IMAGE_ASSETS = Object.freeze([
   { key: 'crop_sunflower_03', path: 'farming/crops/sunflower_03.png', width: 11, height: 13 },
   { key: 'crop_sunflower_04', path: 'farming/crops/sunflower_04.png', width: 13, height: 19 },
   { key: 'crop_sunflower_05', path: 'farming/crops/sunflower_05.png', width: 13, height: 16 },
+
+  { key: 'crop_radish_00', path: 'farming/crops/radish_00.png', width: 6, height: 6 },
+  { key: 'crop_radish_01', path: 'farming/crops/radish_01.png', width: 6, height: 6 },
+  { key: 'crop_radish_02', path: 'farming/crops/radish_02.png', width: 8, height: 7 },
+  { key: 'crop_radish_03', path: 'farming/crops/radish_03.png', width: 8, height: 10 },
+  { key: 'crop_radish_04', path: 'farming/crops/radish_04.png', width: 12, height: 15 },
+  { key: 'crop_radish_05', path: 'farming/crops/radish_05.png', width: 12, height: 15 },
+
+  { key: 'crop_potato_00', path: 'farming/crops/potato_00.png', width: 6, height: 6 },
+  { key: 'crop_potato_01', path: 'farming/crops/potato_01.png', width: 6, height: 6 },
+  { key: 'crop_potato_02', path: 'farming/crops/potato_02.png', width: 8, height: 8 },
+  { key: 'crop_potato_03', path: 'farming/crops/potato_03.png', width: 8, height: 11 },
+  { key: 'crop_potato_04', path: 'farming/crops/potato_04.png', width: 11, height: 15 },
+  { key: 'crop_potato_05', path: 'farming/crops/potato_05.png', width: 10, height: 10 },
+
+  { key: 'crop_beetroot_00', path: 'farming/crops/beetroot_00.png', width: 5, height: 5 },
+  { key: 'crop_beetroot_01', path: 'farming/crops/beetroot_01.png', width: 6, height: 5 },
+  { key: 'crop_beetroot_02', path: 'farming/crops/beetroot_02.png', width: 8, height: 6 },
+  { key: 'crop_beetroot_03', path: 'farming/crops/beetroot_03.png', width: 8, height: 11 },
+  { key: 'crop_beetroot_04', path: 'farming/crops/beetroot_04.png', width: 12, height: 14 },
+  { key: 'crop_beetroot_05', path: 'farming/crops/beetroot_05.png', width: 16, height: 16 },
+
+  { key: 'crop_wheat_00', path: 'farming/crops/wheat_00.png', width: 6, height: 6 },
+  { key: 'crop_wheat_01', path: 'farming/crops/wheat_01.png', width: 11, height: 7 },
+  { key: 'crop_wheat_02', path: 'farming/crops/wheat_02.png', width: 11, height: 10 },
+  { key: 'crop_wheat_03', path: 'farming/crops/wheat_03.png', width: 13, height: 14 },
+  { key: 'crop_wheat_04', path: 'farming/crops/wheat_04.png', width: 13, height: 16 },
+  { key: 'crop_wheat_05', path: 'farming/crops/wheat_05.png', width: 13, height: 13 },
+
+  { key: 'crop_cabbage_00', path: 'farming/crops/cabbage_00.png', width: 5, height: 5 },
+  { key: 'crop_cabbage_01', path: 'farming/crops/cabbage_01.png', width: 10, height: 7 },
+  { key: 'crop_cabbage_02', path: 'farming/crops/cabbage_02.png', width: 8, height: 7 },
+  { key: 'crop_cabbage_03', path: 'farming/crops/cabbage_03.png', width: 12, height: 10 },
+  { key: 'crop_cabbage_04', path: 'farming/crops/cabbage_04.png', width: 16, height: 13 },
+  { key: 'crop_cabbage_05', path: 'farming/crops/cabbage_05.png', width: 12, height: 11 },
+
+  { key: 'crop_kale_00', path: 'farming/crops/kale_00.png', width: 5, height: 5 },
+  { key: 'crop_kale_01', path: 'farming/crops/kale_01.png', width: 4, height: 7 },
+  { key: 'crop_kale_02', path: 'farming/crops/kale_02.png', width: 6, height: 8 },
+  { key: 'crop_kale_03', path: 'farming/crops/kale_03.png', width: 10, height: 9 },
+  { key: 'crop_kale_04', path: 'farming/crops/kale_04.png', width: 14, height: 11 },
+  { key: 'crop_kale_05', path: 'farming/crops/kale_05.png', width: 14, height: 11 },
+
+  { key: 'crop_cauliflower_00', path: 'farming/crops/cauliflower_00.png', width: 5, height: 5 },
+  { key: 'crop_cauliflower_01', path: 'farming/crops/cauliflower_01.png', width: 6, height: 7 },
+  { key: 'crop_cauliflower_02', path: 'farming/crops/cauliflower_02.png', width: 8, height: 8 },
+  { key: 'crop_cauliflower_03', path: 'farming/crops/cauliflower_03.png', width: 10, height: 11 },
+  { key: 'crop_cauliflower_04', path: 'farming/crops/cauliflower_04.png', width: 12, height: 12 },
+  { key: 'crop_cauliflower_05', path: 'farming/crops/cauliflower_05.png', width: 12, height: 12 },
 ]);
 
 /**

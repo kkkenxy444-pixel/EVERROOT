@@ -1,6 +1,11 @@
 import { CROPS } from '../data/crops.js';
 import { ECONOMY, FARMING, SAVE, TIME, WORLD } from '../data/gameConfig.js';
-import { SEED_ITEM_IDS, TOOL_IDS, TOOLS } from '../data/items.js';
+import {
+  isSeedUnlocked,
+  SEED_ITEM_IDS,
+  TOOL_IDS,
+  TOOLS,
+} from '../data/items.js';
 import { eventBus, EVENTS } from './EventBus.js';
 import { InventorySystem } from './InventorySystem.js';
 
@@ -58,32 +63,35 @@ class SaveSystemClass {
    * Returns a fresh default state for a new game.
    */
   createDefaultState() {
-    const initialInventoryMap = {
+    const startDay = TIME.START_DAY;
+    const candidateStartingSeeds = {
       seed_parsnip: ECONOMY.STARTING_SEEDS_PARSNIP,
       seed_carrot: ECONOMY.STARTING_SEEDS_CARROT,
       seed_sunflower: ECONOMY.STARTING_SEEDS_SUNFLOWER,
       seed_pumpkin: ECONOMY.STARTING_SEEDS_PUMPKIN,
-      crop_parsnip: 0,
-      crop_carrot: 0,
-      crop_sunflower: 0,
-      crop_pumpkin: 0,
-      fish_small: 0,
-      fish_medium: 0,
-      fish_large: 0,
     };
+    const initialInventoryMap = {};
+    for (const [seedId, count] of Object.entries(candidateStartingSeeds)) {
+      if (isSeedUnlocked(seedId, startDay) && count > 0) {
+        initialInventoryMap[seedId] = count;
+      }
+    }
     const inventorySlots =
       InventorySystem.createSlotsFromLegacyMap(initialInventoryMap);
     const inventory = InventorySystem.computeSummaryMap(inventorySlots);
+    const defaultSeedId =
+      SEED_ITEM_IDS.find((id) => isSeedUnlocked(id, startDay)) ||
+      'seed_parsnip';
 
     return {
       version: SAVE.VERSION,
       savedAt: Date.now(),
-      day: TIME.START_DAY,
+      day: startDay,
       hour: TIME.START_HOUR,
       minute: TIME.START_MINUTE,
       coins: ECONOMY.STARTING_COINS,
       selectedToolId: TOOL_IDS.HOE,
-      selectedSeedId: 'seed_parsnip',
+      selectedSeedId: defaultSeedId,
       player: {
         tileX: WORLD.SPAWN_TILE_X,
         tileY: WORLD.SPAWN_TILE_Y,
@@ -159,10 +167,6 @@ class SaveSystemClass {
         ? parsed.selectedToolId
         : base.selectedToolId;
 
-      const selectedSeedId = SEED_ITEM_IDS.includes(parsed.selectedSeedId)
-        ? parsed.selectedSeedId
-        : base.selectedSeedId;
-
       const pTileX = Number.isFinite(parsed.player?.tileX)
         ? Math.max(
             1,
@@ -187,6 +191,21 @@ class SaveSystemClass {
         inventorySlots = base.inventorySlots;
       }
       const inventory = InventorySystem.computeSummaryMap(inventorySlots);
+
+      const unlockedSeedIds = SEED_ITEM_IDS.filter((id) =>
+        isSeedUnlocked(id, day)
+      );
+      const ownedUnlockedSeedIds = unlockedSeedIds.filter(
+        (id) => (inventory[id] || 0) > 0
+      );
+      let selectedSeedId = parsed.selectedSeedId;
+      if (ownedUnlockedSeedIds.length > 0) {
+        if (!ownedUnlockedSeedIds.includes(selectedSeedId)) {
+          selectedSeedId = ownedUnlockedSeedIds[0];
+        }
+      } else if (!unlockedSeedIds.includes(selectedSeedId)) {
+        selectedSeedId = unlockedSeedIds[0] || base.selectedSeedId;
+      }
 
       const farmPlots = {};
       if (parsed.farmPlots && typeof parsed.farmPlots === 'object') {

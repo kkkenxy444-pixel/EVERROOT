@@ -293,6 +293,19 @@ export const FARMING = Object.freeze({
   CURSOR_LINE_ALPHA_IDLE: 0.38,
 });
 
+/**
+ * Progressive seed unlock schedule by in-game day (`day >= entry.day`).
+ * Easy to tune without touching save format or system logic.
+ */
+export const SEED_UNLOCK_SCHEDULE = Object.freeze([
+  Object.freeze({ day: 1, crops: Object.freeze(['parsnip', 'carrot']) }),
+  Object.freeze({ day: 3, crops: Object.freeze(['radish', 'potato']) }),
+  Object.freeze({ day: 6, crops: Object.freeze(['beetroot', 'wheat']) }),
+  Object.freeze({ day: 10, crops: Object.freeze(['sunflower', 'cabbage']) }),
+  Object.freeze({ day: 14, crops: Object.freeze(['kale', 'pumpkin']) }),
+  Object.freeze({ day: 18, crops: Object.freeze(['cauliflower']) }),
+]);
+
 export const FISHING = Object.freeze({
   MAX_WATER_DISTANCE_TILES: 2.2,
   CAST_PROBE_TILES: 2,

@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { ASSET_KEYS } from '../data/assetKeys.js';
 import { GAME, getUiScale, INVENTORY, UI } from '../data/gameConfig.js';
 import {
+  getSeedUnlockDay,
+  isSeedUnlocked,
   ITEMS,
   SEED_ITEM_IDS,
   SELLABLE_ITEM_IDS,
@@ -149,6 +151,7 @@ export class ShopModal {
     const h = this.viewHeight;
     const s = this.uiScale;
     const gs = this._getGameState();
+    const currentDay = Math.max(1, Math.floor(Number(gs?.day) || 1));
     const coins = gs?.coins ?? 0;
     const invMap = gs?.inventory || {};
     const slots = gs?.inventorySlots || [];
@@ -331,18 +334,32 @@ export class ShopModal {
       const ry = idx * rowStep;
       const rcy = ry + rowH / 2;
       const isSelected = idx === this.selectedRowIndex;
+      const isLocked = !isSell && !isSeedUnlocked(itemId, currentDay);
+      const unlockDay = isLocked ? getSeedUnlockDay(itemId) : 1;
 
       if (isSell && count > 0) {
         totalSellableValue += count * item.sellPrice;
       }
 
       const rowGfx = this.scene.add.graphics();
-      rowGfx.fillStyle(isSelected ? 0x4b3220 : UI.SLOT_BG, 0.96);
+      const rowFill = isLocked
+        ? isSelected
+          ? 0x332418
+          : 0x20150e
+        : isSelected
+          ? 0x4b3220
+          : UI.SLOT_BG;
+      const rowBorder = isSelected
+        ? UI.SLOT_ACTIVE_BORDER
+        : isLocked
+          ? UI.BTN_DISABLED_BORDER || 0x8c7a6b
+          : UI.PANEL_BORDER;
+      rowGfx.fillStyle(rowFill, isLocked ? 0.92 : 0.96);
       rowGfx.fillRoundedRect(0, ry, rowW, rowH, 4 * s);
       rowGfx.lineStyle(
         (isSelected ? 2 : 1.2) * s,
-        isSelected ? UI.SLOT_ACTIVE_BORDER : UI.PANEL_BORDER,
-        isSelected ? 1 : 0.85
+        rowBorder,
+        isSelected ? 1 : isLocked ? 0.65 : 0.85
       );
       rowGfx.strokeRoundedRect(0, ry, rowW, rowH, 4 * s);
       this.listContainer.add(rowGfx);
@@ -368,7 +385,9 @@ export class ShopModal {
         .image(iconX, iconY, item.iconKey)
         .setOrigin(0.5)
         .setScale(1.35 * s);
-      if (item.tint) {
+      if (isLocked) {
+        icon.setTint(0x6e5d4f).setAlpha(0.55);
+      } else if (item.tint) {
         icon.setTint(item.tint);
       }
       this.listContainer.add(icon);
@@ -378,6 +397,9 @@ export class ShopModal {
           .image(iconX + 6 * s, iconY + 5 * s, item.badgeKey)
           .setOrigin(0.5)
           .setScale(0.9 * s);
+        if (isLocked) {
+          badge.setTint(0x6e5d4f).setAlpha(0.55);
+        }
         this.listContainer.add(badge);
       }
 
@@ -391,7 +413,7 @@ export class ShopModal {
           textX,
           nameY,
           item.name,
-          pixelTextStyle(fontBody, '#fff6e0', {
+          pixelTextStyle(fontBody, isLocked ? '#bfb0a0' : '#fff6e0', {
             stroke: '#120b07',
             strokeThickness: strokePx,
           })
@@ -400,14 +422,18 @@ export class ShopModal {
 
       const priceLabel = isSell
         ? `Harga: ${item.sellPrice}G  •  Tas: ${count}`
-        : `Harga: ${item.buyPrice}G  •  Tas: ${count}`;
+        : isLocked
+          ? `Terkunci  •  Buka di Hari ${unlockDay}`
+          : `Harga: ${item.buyPrice}G  •  Tas: ${count}`;
       const subColor = isSell
         ? count > 0
           ? '#a8f0a0'
           : '#e0cbb5'
-        : coins >= item.buyPrice
-          ? '#ffd866'
-          : '#e0cbb5';
+        : isLocked
+          ? '#d9a066'
+          : coins >= item.buyPrice
+            ? '#ffd866'
+            : '#e0cbb5';
 
       const subTxt = this.scene.add
         .text(
@@ -477,6 +503,26 @@ export class ShopModal {
         );
 
         this.listContainer.add([btnSell1, btnSellAll]);
+      } else if (isLocked) {
+        const lockW = btnW1 + btnGap + btnW2;
+        const lockX = btn1X - btnW1 / 2 + lockW / 2;
+        const btnLocked = this._createButton(
+          lockX,
+          btnY,
+          lockW,
+          btnH,
+          s,
+          fontBtn,
+          `Buka di Hari ${unlockDay}`,
+          UI.BTN_DISABLED_BG || 0x2b231d,
+          false,
+          () => {
+            if (this._dragMoved) return;
+            this.selectedRowIndex = idx;
+            this._triggerPrimaryOnRow(idx);
+          }
+        );
+        this.listContainer.add(btnLocked);
       } else {
         const cost1 = item.buyPrice;
         const cost5 = item.buyPrice * 5;

@@ -2,6 +2,8 @@ import { ASSET_KEYS } from '../data/assetKeys.js';
 import { DEBUG, INVENTORY, isDebugModeEnabled } from '../data/gameConfig.js';
 import {
   FISH_ITEM_IDS,
+  getSeedUnlockDay,
+  isSeedUnlocked,
   ITEMS,
   LEGACY_FISH_ID_MAP,
   SEED_ITEM_IDS,
@@ -148,12 +150,16 @@ export class InventorySystem {
       if (!isDebugModeEnabled()) return;
       this.debugFillSeeds(DEBUG.FILL_SEEDS_AMOUNT);
     };
+    this._onDayAdvanced = () => {
+      this.emitState();
+    };
 
     eventBus.on(EVENTS.INPUT_CYCLE_SEED, this._onCycleSeed);
     eventBus.on(EVENTS.SHOP_BUY_ITEM, this._onBuyItem);
     eventBus.on(EVENTS.SHOP_SELL_ITEM, this._onSellItem);
     eventBus.on(EVENTS.DEBUG_ADD_COINS, this._onDebugCoins);
     eventBus.on(EVENTS.DEBUG_FILL_SEEDS, this._onDebugSeeds);
+    eventBus.on(EVENTS.DAY_ADVANCED, this._onDayAdvanced);
   }
 
   _syncSummaryMap() {
@@ -246,10 +252,17 @@ export class InventorySystem {
     const added = qty - remaining;
     this._syncSummaryMap();
 
-    // If a seed was added and current selectedSeedId has 0 stock, select this seed
-    if (itemDef.category === 'seed') {
+    // If an unlocked seed was added and current selectedSeedId is invalid/locked/empty, select this seed
+    if (
+      itemDef.category === 'seed' &&
+      isSeedUnlocked(itemId, this.getCurrentDay())
+    ) {
       const currentSeed = this.gameState.selectedSeedId;
-      if (!currentSeed || this.getCount(currentSeed) <= 0) {
+      if (
+        !currentSeed ||
+        !isSeedUnlocked(currentSeed, this.getCurrentDay()) ||
+        this.getCount(currentSeed) <= 0
+      ) {
         this.gameState.selectedSeedId = itemId;
       }
     }
@@ -309,39 +322,62 @@ export class InventorySystem {
     return { ok: true, removed: qty };
   }
 
-  /**
-   * Returns the list of seed itemIds that the player currently owns (`count > 0`).
-   */
-  getOwnedSeedIds() {
-    return SEED_ITEM_IDS.filter((id) => this.getCount(id) > 0);
+  getCurrentDay() {
+    return Math.max(1, Math.floor(Number(this.gameState?.day) || 1));
   }
 
   /**
-   * Ensures `gameState.selectedSeedId` points to an owned seed whenever at least one seed is owned.
+   * Returns the list of seed itemIds unlocked on or before the current in-game day.
+   */
+  getUnlockedSeedIds() {
+    const day = this.getCurrentDay();
+    return SEED_ITEM_IDS.filter((id) => isSeedUnlocked(id, day));
+  }
+
+  /**
+   * Returns the list of seed itemIds that are both unlocked AND currently owned (`count > 0`).
+   */
+  getOwnedSeedIds() {
+    const day = this.getCurrentDay();
+    return SEED_ITEM_IDS.filter(
+      (id) => isSeedUnlocked(id, day) && this.getCount(id) > 0
+    );
+  }
+
+  /**
+   * Ensures `gameState.selectedSeedId` points to an unlocked & owned seed whenever available,
+   * or falls back to the first unlocked seed if none are in stock.
    */
   ensureValidSelectedSeed() {
-    const owned = this.getOwnedSeedIds();
+    const ownedUnlocked = this.getOwnedSeedIds();
+    const unlocked = this.getUnlockedSeedIds();
     const current = this.gameState.selectedSeedId;
-    if (owned.length > 0 && !owned.includes(current)) {
-      this.gameState.selectedSeedId = owned[0];
-    } else if (!SEED_ITEM_IDS.includes(current)) {
-      this.gameState.selectedSeedId = SEED_ITEM_IDS[0];
+
+    if (ownedUnlocked.length > 0) {
+      if (!ownedUnlocked.includes(current)) {
+        this.gameState.selectedSeedId = ownedUnlocked[0];
+      }
+    } else if (!unlocked.includes(current)) {
+      this.gameState.selectedSeedId = unlocked[0] || SEED_ITEM_IDS[0];
     }
+
     const activeId = this.gameState.selectedSeedId;
+    const stock = unlocked.includes(activeId) ? this.getCount(activeId) : 0;
     return {
       seedId: activeId,
-      stock: this.getCount(activeId),
+      stock,
     };
   }
 
   /**
-   * Cycles only among seeds currently owned by the player (`count > 0`).
-   * If all seeds are out of stock, plays error SFX and shows a short toast.
+   * Cycles only among seeds that are unlocked AND currently owned (`count > 0`).
+   * If all unlocked seeds are out of stock, plays error SFX and shows a short toast.
    */
   cycleOwnedSeed(step = 1) {
     const owned = this.getOwnedSeedIds();
     if (owned.length === 0) {
-      const fallbackId = this.gameState.selectedSeedId || SEED_ITEM_IDS[0];
+      const valid = this.ensureValidSelectedSeed();
+      const fallbackId = valid.seedId || SEED_ITEM_IDS[0];
       eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_UI_ERROR);
       eventBus.emit(EVENTS.SEED_CHANGED, fallbackId, 0);
       eventBus.emit(
@@ -373,14 +409,24 @@ export class InventorySystem {
   }
 
   /**
-   * Buys `quantity` of a seed item at the Seed Stall.
-   * Checks coin balance (never goes negative) and inventory slot capacity.
+   * Buys `quantity` of an unlocked seed item at the Seed Stall.
+   * Rejects locked seeds, checks coin balance (never goes negative), and checks inventory slot capacity.
    */
   buySeed(seedItemId, quantity = 1) {
     const itemDef = ITEMS[seedItemId];
     const qty = Math.max(1, Math.floor(Number(quantity) || 1));
     if (!itemDef || !itemDef.canBuy || itemDef.buyPrice <= 0) {
       return { ok: false, reason: 'invalid_item' };
+    }
+
+    if (!isSeedUnlocked(seedItemId, this.getCurrentDay())) {
+      const unlockDay = getSeedUnlockDay(seedItemId);
+      eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_UI_ERROR);
+      eventBus.emit(
+        EVENTS.TOAST_MESSAGE,
+        `${itemDef.name} baru buka di Hari ${unlockDay}!`
+      );
+      return { ok: false, reason: 'locked', unlockDay };
     }
 
     const totalCost = itemDef.buyPrice * qty;
@@ -531,12 +577,12 @@ export class InventorySystem {
   }
 
   /**
-   * Debug helper (`?debug=1` only): adds `amountEach` of each seed type into available slots.
+   * Debug helper (`?debug=1` only): adds `amountEach` of each unlocked seed type into available slots.
    */
   debugFillSeeds(amountEach = DEBUG.FILL_SEEDS_AMOUNT) {
     if (!isDebugModeEnabled()) return;
     let totalAdded = 0;
-    for (const seedId of SEED_ITEM_IDS) {
+    for (const seedId of this.getUnlockedSeedIds()) {
       for (let i = 0; i < amountEach; i++) {
         if (this.canAddItem(seedId, 1)) {
           this.addItem(seedId, 1, true);
@@ -579,5 +625,6 @@ export class InventorySystem {
     eventBus.off(EVENTS.SHOP_SELL_ITEM, this._onSellItem);
     eventBus.off(EVENTS.DEBUG_ADD_COINS, this._onDebugCoins);
     eventBus.off(EVENTS.DEBUG_FILL_SEEDS, this._onDebugSeeds);
+    eventBus.off(EVENTS.DAY_ADVANCED, this._onDayAdvanced);
   }
 }

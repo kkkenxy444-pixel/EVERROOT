@@ -1,7 +1,12 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
-import { CROPS } from '../data/crops.js';
+import { computeCropStage, CROPS } from '../data/crops.js';
 import { FARMING } from '../data/gameConfig.js';
-import { ITEMS, SEED_ITEM_IDS, TOOL_IDS } from '../data/items.js';
+import {
+  isSeedUnlocked,
+  ITEMS,
+  SEED_ITEM_IDS,
+  TOOL_IDS,
+} from '../data/items.js';
 import { Crop } from '../entities/Crop.js';
 import { eventBus, EVENTS } from './EventBus.js';
 
@@ -212,7 +217,7 @@ export class FarmingSystem {
         return { handled: true, animAction: null, lockMs: 0 };
       }
 
-      // Ensure we have a valid owned seed with stock > 0
+      // Ensure we have a valid unlocked & owned seed with stock > 0
       let seedId = this.gameState.selectedSeedId || SEED_ITEM_IDS[0];
       if (this.inventorySystem) {
         const valid = this.inventorySystem.ensureValidSelectedSeed();
@@ -225,7 +230,10 @@ export class FarmingSystem {
           );
           return { handled: true, animAction: null, lockMs: 0 };
         }
-      } else if ((this.gameState.inventory[seedId] || 0) <= 0) {
+      } else if (
+        !isSeedUnlocked(seedId, this.gameState.day || 1) ||
+        (this.gameState.inventory[seedId] || 0) <= 0
+      ) {
         eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_UI_ERROR);
         eventBus.emit(
           EVENTS.TOAST_MESSAGE,
@@ -338,18 +346,29 @@ export class FarmingSystem {
 
       if (plot.cropId && CROPS[plot.cropId]) {
         const cropDef = CROPS[plot.cropId];
-        if (plot.stage < FARMING.MAX_STAGE) {
+        const maxStage = cropDef.maxStage || FARMING.MAX_STAGE;
+        if (plot.stage < maxStage) {
           if (plot.watered) {
-            const step = cropDef.stagesPerDay || 1;
-            plot.stage = Math.min(FARMING.MAX_STAGE, plot.stage + step);
-            plot.daysPlanted = (plot.daysPlanted || 0) + 1;
+            const totalDays = cropDef.daysToGrow || maxStage;
+            const prevDays =
+              Number.isFinite(plot.daysPlanted) && plot.daysPlanted > 0
+                ? plot.daysPlanted
+                : plot.stage > 0
+                  ? plot.stage
+                  : 0;
+            const nextDays = Math.min(totalDays, prevDays + 1);
+            plot.daysPlanted = nextDays;
+            plot.stage = Math.max(
+              plot.stage,
+              computeCropStage(nextDays, totalDays, maxStage)
+            );
             grew = true;
             grownCount += 1;
           } else {
             unwateredCount += 1;
           }
         }
-        if (plot.stage >= FARMING.MAX_STAGE) {
+        if (plot.stage >= maxStage) {
           readyCount += 1;
         }
       }
