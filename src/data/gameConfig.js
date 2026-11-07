@@ -93,6 +93,13 @@ export const MAP_ZONES = Object.freeze({
     X1: 20,
     Y1: 22,
   }),
+  // Interior pond water zone (derived from lake waterTiles, clear of shore banks & pier)
+  POND_WATER: Object.freeze({
+    X0: 28,
+    Y0: 12,
+    X1: 36,
+    Y1: 20,
+  }),
   POND_SHORE_SOUTH: Object.freeze({
     X0: 26,
     Y0: 22,
@@ -100,10 +107,10 @@ export const MAP_ZONES = Object.freeze({
     Y1: 23,
   }),
   BIRD_MEADOW: Object.freeze({
-    X0: 8,
-    Y0: 6,
-    X1: 23,
-    Y1: 21,
+    X0: 23,
+    Y0: 7,
+    X1: 30,
+    Y1: 8,
   }),
 });
 
@@ -112,17 +119,27 @@ export const AMBIENT_ANIMALS = Object.freeze({
   IDLE_MIN_MS: 1600,
   IDLE_MAX_MS: 4200,
   WALK_MIN_MS: 1100,
-  WALK_MAX_MS: 2800,
-  SOUND_MAX_DISTANCE_PX: 72, // ~4.5 tiles from player
+  WALK_MAX_MS: 2600,
+  ROAM_RADIUS_PX: 30, // ~1.9 tiles roam radius around each animal's home point
+  MIN_SEPARATION_PX: 32, // 2 tiles minimum distance between animals
+  TARGET_MAX_ATTEMPTS: 8,
+  SOUND_MAX_DISTANCE_PX: 160, // ~10 tiles from player so calls are heard before touching
   SOUND_MIN_INTERVAL_MS: 9000,
   SOUND_MAX_INTERVAL_MS: 18000,
   MORNING_CROW_HOUR: 6,
-  // 8 ambient animals total: 2 chickens, 1 cow, 1 sheep, 1 pig, 1 duck, 2 birds
+  MORNING_CROW_COUNT: 3,
+  MORNING_CROW_DELAY_MIN_MS: 1500,
+  MORNING_CROW_DELAY_MAX_MS: 3000,
+  MORNING_CROW_VOLUME_DECAY: Object.freeze([1.0, 0.78, 0.58]),
+  // 8 ambient animals total: 2 chickens, 1 cow, 1 sheep, 1 pig, 1 duck (pond water), 2 birds
+  // Visual inspection of all 6 PNG strips: all face LEFT in frame 0..3 (`facesRight: false`)
   SPAWNS: Object.freeze([
     Object.freeze({
       type: 'chicken',
       count: 2,
       zone: 'PASTURE',
+      facesRight: false,
+      waterOnly: false,
       speed: 18,
       fps: 6,
       originY: 0.78,
@@ -131,6 +148,8 @@ export const AMBIENT_ANIMALS = Object.freeze({
       type: 'cow',
       count: 1,
       zone: 'PASTURE',
+      facesRight: false,
+      waterOnly: false,
       speed: 11,
       fps: 5,
       originY: 0.82,
@@ -139,6 +158,8 @@ export const AMBIENT_ANIMALS = Object.freeze({
       type: 'sheep',
       count: 1,
       zone: 'PASTURE',
+      facesRight: false,
+      waterOnly: false,
       speed: 12,
       fps: 5,
       originY: 0.82,
@@ -147,6 +168,8 @@ export const AMBIENT_ANIMALS = Object.freeze({
       type: 'pig',
       count: 1,
       zone: 'PASTURE',
+      facesRight: false,
+      waterOnly: false,
       speed: 13,
       fps: 5,
       originY: 0.82,
@@ -154,15 +177,20 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'duck',
       count: 1,
-      zone: 'POND_SHORE_SOUTH',
-      speed: 14,
+      zone: 'POND_WATER',
+      facesRight: false,
+      waterOnly: true,
+      roamRadius: 42,
+      speed: 13,
       fps: 6,
-      originY: 0.85,
+      originY: 0.75,
     }),
     Object.freeze({
       type: 'bird',
       count: 2,
       zone: 'BIRD_MEADOW',
+      facesRight: false,
+      waterOnly: false,
       speed: 22,
       fps: 8,
       originY: 0.85,

@@ -476,8 +476,9 @@ class AudioManagerClass {
    * Plays a one-shot SFX key registered in `src/data/assetKeys.js`.
    * Enforces max 1-2 active instances per key and stops previous instance
    * if re-triggered within `AUDIO_CONFIG.SFX_RETRIGGER_RESTART_MS`.
+   * Optional `options.volumeScale` (0..1) scales volume down (e.g. sequential morning crows).
    */
-  playSfx(sfxKey) {
+  playSfx(sfxKey, options) {
     if (!this.sound || this.muted || this.sfxLevel <= 0 || !sfxKey) return;
     if (!this._hasAudioInCache(sfxKey)) return;
 
@@ -485,9 +486,16 @@ class AudioManagerClass {
 
     const sfxCfg = AUDIO_CONFIG.SFX_SETTINGS[sfxKey] || {};
     const defSfx = AUDIO_CONFIG.DEFAULT_SFX_LEVEL || 0.75;
+    const volumeScale =
+      options && options.volumeScale !== undefined
+        ? Math.max(0, Math.min(1, Number(options.volumeScale)))
+        : 1;
     const vol = Math.min(
       1,
-      (sfxCfg.volume ?? 1) * AUDIO_CONFIG.SFX_VOLUME * (this.sfxLevel / defSfx)
+      (sfxCfg.volume ?? 1) *
+        volumeScale *
+        AUDIO_CONFIG.SFX_VOLUME *
+        (this.sfxLevel / defSfx)
     );
     if (vol <= 0) return;
 
