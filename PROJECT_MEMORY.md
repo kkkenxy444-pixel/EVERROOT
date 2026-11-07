@@ -34,11 +34,9 @@
   - `TODO_ASSET`: ikon koin (digambar Graphics), ikon penyiram (`ui/icons/water.png`), bobber pancing (Graphics), ikon ikan hanya 1 (`fish.png`, dipakai 3 jenis dengan tint), ikon bibit generik (`seeds_generic.png` + badge panen).
 
 ## 4. Keputusan Desain Final
-**Scope V1**: menu; 1 map outdoor 16px (kebun, jalan, danau + dermaga, rumah, kotak jual, kios bibit, kincir angin); player 8 arah + collision + kamera follow; farming 4 tanaman (`parsnip`, `carrot`, `sunflower`, `pumpkin`, stage 00-05, tumbuh saat tidur bila disiram); mancing 3 jenis ikan; siklus waktu 06:00-24:00 (pagi/siang/sore/malam + overlay warna); tidur di rumah = hari baru + autosave; koin, beli bibit, jual panen/ikan; inventory 12 slot (stack maks 20); toolbar 4 alat (Cangkul, Penyiram, Bibit, Joran); kontrol keyboard + sentuh (joystick kiri, AKSI/ALAT/BIBIT kanan); save `localStorage` key `everroot_v1_save`, **versi 2** (migrasi dari v1).
+**Scope saat ini**: menu; 1 map outdoor 16px (kebun, jalan, danau + dermaga, rumah, kotak jual, kios bibit, kincir angin); player 8 arah + collision + kamera follow; farming 11 tanaman (stage 00-05, tumbuh saat tidur bila disiram, bibit dibuka bertahap per hari); mancing 3 jenis ikan; siklus waktu 06:00-24:00 + tint halus per jam; 8 hewan ambient; tidur = hari baru + autosave; koin, beli bibit, jual panen/ikan; inventory 12 slot (stack maks 20); toolbar 4 alat (Cangkul, Penyiram, Bibit, Joran); kontrol keyboard + sentuh (joystick kiri, AKSI/ALAT/BIBIT kanan); save `localStorage` key `everroot_v1_save`, **versi 2** (migrasi dari v1).
 
-**Ditunda ke V2 (jangan dibuat di V1)**: combat/musuh (goblin, skeleton), hewan ternak, cooking, quest, NPC dialog, toko multi-kategori, interior rumah penuh, cuaca dinamis.
-
-**Ide lanjutan yang dibahas (belum dibuat)**: Paket A = juice/feedback, target harian, upgrade di kios (slot tas, petak baru, alat). Paket B = hewan dekoratif, burung/ambience, hujan. Paket C = item temuan, area hutan, NPC pedagang.
+**Ditunda ke V2**: combat/musuh (goblin, skeleton), cooking, quest, NPC dialog, toko multi-kategori, interior rumah penuh.
 
 ## 5. Status
 Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara resmi, tetapi user sudah menjalankan dan melihat M1-M4 di HP: tanam, siram, mancing, jual berjalan.
@@ -50,11 +48,29 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
   - **Font & UI**: Konstanta `UI.FONT` (`gameConfig.js`) + `getTextResolution()` (`FontLoader.js`) diterapkan ke `ShopModal`, `UIScene`, `MenuScene`, `TouchControls`, dan `WorldBuilder`. Pada 1612x720 (`uiScale=2`): teks isi modal 30px, sub-info ("Harga • Tas: n") 28px, label tombol 26-28px, toast/hint 28px, indikator mancing 30px, label bangunan 27px (`9px * zoom 3`). `ShopModal` lebar 84% layar (landscape) / 92% (portrait), tombol Jual/Beli tinggi >= 56px fisik, daftar dapat di-scroll (geser/wheel/keyboard) dengan scrollbar, tombol nonaktif kontras tinggi (`#2b231d` / `#8c7a6b` / `#dcd3c8` + outline `#120b07`).
   - **Audio**: Volume terpisah per kategori (BGM, Alam/Ambience, SFX) di `AudioManager`, `MenuScene`, dan popover `Suara▾` (`UIScene`). Batas 1-2 instance aktif per key SFX + stop instance lama bila dipicu ulang < `140ms` (`SFX_RETRIGGER_RESTART_MS`). `audio/ambience/stream.wav` (`AMB_STREAM`) dinonaktifkan secara default (`siang`/`sore` = `null`) karena broadband noise (RMS 0.1195) dan lompatan titik loop kanal kanan (`delta 0.1035`). Mode `?debug=1` menampilkan overlay daftar suara aktif beserta volumenya.
 
+- **Tint siang-malam (`[SELESAI-BUILD]`)**: keyframe 24 jam di `TIME.TINT_KEYFRAMES` (`gameConfig.js`), diinterpolasi smoothstep oleh `TimeSystem.getTintForHour`. Bug perkalian alpha sudah diperbaiki (`fillAlpha = 1`, alpha diatur di GameObject). Ditunda: jam 19:00 masih terlalu terang, sore kurang oranye.
+- **Paket 1 — Desa Hidup (`[SELESAI-BUILD]`)**: `entities/AmbientAnimal.js` + `AMBIENT_ANIMALS` di `gameConfig.js`: 8 hewan (2 ayam, sapi, domba, babi, bebek, 2 burung), bebek hanya berenang di `POND_WATER`, jarak minimum antarhewan (anti-numpuk), `facesRight` per spesies (semua strip menghadap kiri). Suara hewan berdasar jarak ke player; kokok pagi 06:00 3x (volume menurun) memakai `farm_chicken_cluck.ogg` biasa.
+- **Paket 2 — Tanaman Baru (`[SELESAI-BUILD]`, belum dites HP; diverifikasi lewat simulasi Node dengan Phaser di-mock)**: +7 tanaman (radish, potato, beetroot, wheat, cabbage, kale, cauliflower). `SEED_UNLOCK_SCHEDULE` di `gameConfig.js` (Hari 1 parsnip/carrot, 3 radish/potato, 6 beetroot/wheat, 10 sunflower/cabbage, 14 kale/pumpkin, 18 cauliflower). Status unlock dihitung dari `day` (tanpa field baru, save tetap v2). Tanaman >5 hari: hari siram dipetakan ke stage 00-05 (`computeCropStage`). Tombol BIBIT hanya memutar bibit terbuka & dimiliki; ShopModal menampilkan bibit terkunci "Buka di Hari X". Game baru hanya memberi bibit parsnip + carrot. Di save lama, bibit terkunci tetap di tas tetapi tidak bisa dipilih/ditanam sampai hari bukanya.
+
+  | Tanaman | Buka | Hari | Bibit | Jual | Untung/hari |
+  | :-- | :-: | :-: | :-: | :-: | :-: |
+  | parsnip | 1 | 5 | 10 | 22 | 2.4 |
+  | carrot | 1 | 5 | 15 | 34 | 3.8 |
+  | radish | 3 | 5 | 18 | 40 | 4.4 |
+  | potato | 3 | 5 | 20 | 44 | 4.8 |
+  | beetroot | 6 | 6 | 22 | 54 | 5.3 |
+  | wheat | 6 | 6 | 24 | 59 | 5.8 |
+  | sunflower | 10 | 5 | 25 | 56 | 6.2 |
+  | cabbage | 10 | 6 | 30 | 72 | 7.0 |
+  | kale | 14 | 7 | 36 | 92 | 8.0 |
+  | pumpkin | 14 | 5 | 40 | 90 | 10.0 |
+  | cauliflower | 18 | 8 | 55 | 143 | 11.0 |
+
 ## 6. Peta Kode
 - `src/main.js` (Game config, listener resize/orientationchange/visualViewport + `scale.refresh()`), `src/style.css` (layar penuh, canvas 100%).
 - **data/**: `gameConfig.js` (semua konstanta + helper `getWorldZoom`, `getUiScale`, `getPhysicalCanvasSize`, `isDebugModeEnabled`), `assetKeys.js` (key + path + frame 126 aset), `tileIndex.js` (index tile terverifikasi), `audioConfig.js` (BGM/ambience/SFX), `crops.js`, `items.js` (alat, item, 3 ikan).
 - **scenes/**: `BootScene` (muat font), `PreloadScene`, `MenuScene`, `GameScene` (rakit world/player/sistem, kamera, overlay waktu, buka ShopModal, tidur), `UIScene` (HUD 1 baris, inventory 12 slot, toast, indikator pancing, toolbar, TouchControls, ShopModal, popover Suara, overlay debug audio).
-- **entities/**: `Player` (container 3 layer, aksi terkunci, debu langkah), `Crop` (petak + tanaman).
+- **entities/**: `Player` (container 3 layer, aksi terkunci, debu langkah), `Crop` (petak + tanaman), `AmbientAnimal` (hewan dekoratif).
 - **systems/**: `EventBus`, `FontLoader`, `AudioManager`, `SaveSystem`, `InputSystem`, `WorldBuilder` (tilemap 4 layer, `isWaterTile`, label bangunan saat dekat), `InventorySystem`, `FarmingSystem`, `FishingSystem`, `TimeSystem`.
 - **ui/**: `TouchControls`, `ShopModal`.
 - **Event (`EVENTS` di EventBus.js)**: INPUT_ACTION, INPUT_CYCLE_TOOL/SEED, INPUT_SELECT_TOOL, TOUCH_DETECTED, TOOL_CHANGED, SEED_CHANGED, INVENTORY_ITEM_ADDED/REMOVED, INVENTORY_UPDATED, COINS_CHANGED, OPEN_SHOP/CLOSE_SHOP, SHOP_BUY_ITEM/SELL_ITEM, FARM_PLOT_UPDATED, FARM_ACTION_FEEDBACK, FISHING_STATE_CHANGED, FISHING_CAUGHT, TIME_UPDATED, PHASE_CHANGED, CONFIRM_SLEEP, DAY_ADVANCED, GAME_SAVED, INTERACTION_HINT, TOAST_MESSAGE, PLAY_SFX, AUDIO_MUTED_CHANGED, AUDIO_SETTINGS_CHANGED, DEBUG_ADD_COINS/NEXT_DAY/FILL_SEEDS.
@@ -64,6 +80,7 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 2. Tanpa angka ajaib: konstanta di `gameConfig.js` / `crops.js` / `items.js` / `audioConfig.js`.
 3. Key aset lewat `assetKeys.js`, audio lewat `audioConfig.js`, index tile lewat `tileIndex.js` (jangan menebak; cek tileIndex.js; TilesetDebugScene sudah dihapus).
 4. Jangan alokasi objek baru di `update()`. Lepas listener `eventBus` saat scene SHUTDOWN.
+5. **Skills**: sebelum tugas, baca `SKILL.md` yang relevan di `.agents/skills/` (phaser, phaser-2d-game, game-development, game-ui-frontend, systematic-debugging, verification-before-completion). `game-playtest` tidak bisa jalan di Termux.
 
 ## 8. Masalah yang Diketahui
 1. **Verifikasi di HP belum dilakukan (`[SELESAI-BUILD]`)**: Perubahan ukuran font `UI.FONT`, lebar/scroll `ShopModal`, tinggi tombol 56px, layout portrait, dan perbaikan suara berkeresek belum dikonfirmasi langsung di layar/speaker HP oleh user.
@@ -72,12 +89,18 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
    - *Dugaan (perlu tes HP)*: Apakah desis saat aksi di speaker HP murni berasal dari tumpukan SFX + `stream.wav`, atau masih ada artefak resampling WebAudio pada sampel WAV 44.1kHz tertentu di browser Android.
 3. **Harga/keseimbangan ikan (terverifikasi di kode)**: Di `gameConfig.js` (`FISHING.FISH_PRICES`) & `items.js`, harga jual ikan memang sudah direbalancing pada M4 menjadi `fish_small = 6G`, `fish_medium = 12G`, `fish_large = 25G` (bukan 12/24/50G dari catatan M3 awal).
 4. Perilaku portrait (zoom dihitung dari tinggi layar) dan multitouch belum dites penuh di HP.
-5. Aset: lihat bagian 3 (ikon JPEG berekstensi .png, TODO_ASSET).
+5. Aset: lihat bagian 3 (ikon JPEG berekstensi .png, TODO_ASSET). Tidak ada di bundle: kokok ayam jantan, suara domba, suara babi.
+7. **Slot inventory (TERBUKA)**: `MAX_SLOTS` masih 12, padahal ada 25 jenis item (11 bibit + 11 panen + 3 ikan). Rencana: naik ke 24 (laci 6x4). Cadangan: Kantung Bibit terpisah (bibit keluar dari slot tas).
+8. **Belum dites HP**: tint baru, Paket 1, Paket 2.
 6. **Freeze tombol Menu/Tileset `[SELESAI-BUILD]`**: Akar masalah (terbukti dari kode Phaser 3.90): saat `stop(GAME)`, `DisplayList#shutdown` menghancurkan sprite player LEBIH DULU (`sprite.anims = undefined`), lalu listener SHUTDOWN GameScene memanggil `FishingSystem.destroy()` → `cancelFishing()` → `Player.unlockAction()` → `sprite.play()` → TypeError. `SceneManager#processQueue` tidak punya try/catch, jadi `stop(UI)` + `start(MENU/TILESET)` tidak pernah dijalankan → layar beku. Diperbaiki: `FishingSystem.destroy` tidak lagi memanggil `cancelFishing`; `Player` diberi guard + `destroy()`; SHUTDOWN GameScene/UIScene/ShopModal/TilesetDebugScene dibuat tahan error (try/catch per sistem); `_saveCurrentState` menolak simpan bila container player sudah hilang. Overlay error DOM global aktif selalu (`main.js`). **Aturan**: di handler SHUTDOWN jangan pernah memanggil method yang menyentuh GameObject (sudah dihancurkan DisplayList).
 
 ## 9. Langkah Berikutnya
 1. **Konfirmasi tes HP (`[SELESAI-TES-HP]`)**: Tekan Menu dari HUD (termasuk saat sedang mancing) — harus pindah scene tanpa beku & tanpa kotak merah. Uji keterbacaan font & scroll `ShopModal` (landscape 1612x720 & portrait), serta cek apakah suara berkeresek sudah hilang (gunakan `?debug=1` untuk memantau overlay suara aktif).
-2. Setelah konfirmasi tes HP: lanjut ke Paket A (juice/feedback, target harian, upgrade di kios) atau Paket B (hewan dekoratif, burung/ambience, hujan).
+2. Inventory 24 slot (laci 6x4).
+3. Paket 3: cuaca/hujan.
+4. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` ada).
+5. Perbaikan tint sore (19:00 lebih gelap, sore lebih oranye).
+6. V2: combat.
 
 ## 10. Log Sesi
 | Tanggal | Model | Pekerjaan | Build |
@@ -87,3 +110,5 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 | 2026-10-31 | Gemini 4 Argon | M4: AudioManager, popover Suara, floating text, README, rebalancing mancing | Lolos (34 modul) |
 | 2026-10-31 | Gemini 4 Argon | Selesaikan perbaikan Font/UI (`ShopModal`, `UIScene`, `MenuScene`) & Audit Audio (`AudioManager` anti-stacking SFX, volume Ambience terpisah, overlay audio `?debug=1`) | Lolos (34 modul) |
 | 2026-10-31 | Gemini 4 Argon, Claude Opus 5.5 | Fix freeze Menu/Tileset (SHUTDOWN order DisplayList vs FishingSystem.destroy), overlay error DOM global, cleanup SHUTDOWN tahan error | Lolos (34 modul) |
+| 2026-11 | — | Tint siang-malam (keyframe + fix alpha); Paket 1 hewan ambient + suara + perbaikan | Lolos |
+| 2026-11-08 | Gemini 4 Argon | Paket 2: 7 tanaman baru, bibit dibuka bertahap, balancing | Lolos (34 modul) |
