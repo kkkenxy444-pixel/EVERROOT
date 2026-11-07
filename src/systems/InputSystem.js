@@ -5,7 +5,7 @@ import { eventBus, EVENTS } from './EventBus.js';
 /**
  * Unified InputSystem combining:
  * - Keyboard: WASD + Arrow keys for 8-direction movement, Space/E for Action, Q for Cycle Tool,
- *   R/Tab for Cycle Seed, 1..4 for direct tool selection, F2 for TilesetDebugScene.
+ *   R/Tab for Cycle Seed, 1..4 for direct tool selection.
  * - Touch: Custom on-screen Virtual Joystick + Action button + Cycle Tool button (via TouchControls).
  *
  * Reuses a pre-allocated vector object (`this.moveVector`) to avoid per-frame GC pressure on mobile.
@@ -51,7 +51,6 @@ export class InputSystem {
       TWO: Phaser.Input.Keyboard.KeyCodes.TWO,
       THREE: Phaser.Input.Keyboard.KeyCodes.THREE,
       FOUR: Phaser.Input.Keyboard.KeyCodes.FOUR,
-      F2: Phaser.Input.Keyboard.KeyCodes.F2,
     });
 
     this._onKeyDownE = () => {

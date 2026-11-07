@@ -134,6 +134,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.time.delayedCall(20, () => {
+      if (!this.sys || !this.sys.isActive()) return;
       if (this.timeSystem) {
         this.timeSystem.emitInitialState();
       }
@@ -222,19 +223,8 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
-    // F2 shortcut to inspect tileset at any time (+ F6/F7/F8 debug keys when ?debug=1)
+    // F6/F7/F8 debug keys when ?debug=1
     if (this.input.keyboard) {
-      this._f2Key = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.F2
-      );
-      this._onF2 = () => {
-        this.scene.stop(SCENE_KEYS.UI);
-        this.scene.start(SCENE_KEYS.TILESET_DEBUG, {
-          returnScene: SCENE_KEYS.GAME,
-        });
-      };
-      this._f2Key.on('down', this._onF2);
-
       if (this.debugEnabled) {
         this._f6Key = this.input.keyboard.addKey(
           Phaser.Input.Keyboard.KeyCodes.F6
@@ -276,15 +266,38 @@ export class GameScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
       window.removeEventListener('pagehide', this._onVisibilityChange);
-      if (this._f2Key) this._f2Key.off('down', this._onF2);
       if (this._f6Key) this._f6Key.off('down', this._onF6);
       if (this._f7Key) this._f7Key.off('down', this._onF7);
       if (this._f8Key) this._f8Key.off('down', this._onF8);
-      if (this.inputSystem) this.inputSystem.destroy();
-      if (this.inventorySystem) this.inventorySystem.destroy();
-      if (this.farmingSystem) this.farmingSystem.destroy();
-      if (this.fishingSystem) this.fishingSystem.destroy();
-      if (this.timeSystem) this.timeSystem.destroy();
+      if (this._overlayTween) {
+        try {
+          this._overlayTween.stop();
+        } catch {
+          // tween manager may already be shutting down
+        }
+        this._overlayTween = null;
+      }
+      try {
+        this.cameras?.main?.removeAllListeners?.();
+      } catch {
+        // ignore
+      }
+      const safeDestroy = (name) => {
+        const sys = this[name];
+        if (!sys || typeof sys.destroy !== 'function') return;
+        try {
+          sys.destroy();
+        } catch (err) {
+          console.error(`[GameScene] ${name}.destroy failed`, err);
+        }
+      };
+      safeDestroy('inputSystem');
+      safeDestroy('inventorySystem');
+      safeDestroy('farmingSystem');
+      safeDestroy('fishingSystem');
+      safeDestroy('timeSystem');
+      safeDestroy('player');
+      this.player = null;
     });
   }
 
@@ -341,16 +354,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   _saveCurrentState() {
-    if (!this.gameState || !this.player) return;
-    const coords = this.player.getTileCoords();
-    this.gameState.player.tileX = coords.tx;
-    this.gameState.player.tileY = coords.ty;
-    SaveSystem.save(this.gameState);
+    if (!this.gameState || !this.player || !this.player.container) return;
+    try {
+      const coords = this.player.getTileCoords();
+      this.gameState.player.tileX = coords.tx;
+      this.gameState.player.tileY = coords.ty;
+      SaveSystem.save(this.gameState);
+    } catch (err) {
+      console.error('[GameScene] save failed', err);
+    }
   }
 
   flushSaveIfActive() {
-    if (SaveSystem.hasSave()) {
-      this._saveCurrentState();
+    try {
+      if (SaveSystem.hasSave()) {
+        this._saveCurrentState();
+      }
+    } catch (err) {
+      console.error('[GameScene] flushSaveIfActive failed', err);
     }
   }
 

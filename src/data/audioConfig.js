@@ -59,7 +59,6 @@ export const AUDIO_CONFIG = Object.freeze({
       volume: 0.38,
       loop: true,
     },
-    [SCENE_KEYS.TILESET_DEBUG]: null,
   }),
 
   /**

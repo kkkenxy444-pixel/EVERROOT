@@ -348,15 +348,19 @@ export class FishingSystem {
     if (applyCooldown && this.scene?.time) {
       this.cooldownUntil = this.scene.time.now + FISHING.COOLDOWN_MS;
     }
-    if (this.bobberGfx) {
+    if (this.bobberGfx && this.bobberGfx.scene) {
       this.bobberGfx.clear();
       this.bobberGfx.setVisible(false);
     }
-    if (this.caughtFishIcon) {
+    if (this.caughtFishIcon && this.caughtFishIcon.scene) {
       this.caughtFishIcon.setVisible(false);
     }
     if (targetPlayer) {
-      targetPlayer.unlockAction();
+      try {
+        targetPlayer.unlockAction();
+      } catch (err) {
+        console.warn('[FishingSystem] unlockAction failed', err);
+      }
     }
     this._emitStateChanged(targetPlayer, 0);
   }
@@ -489,11 +493,26 @@ export class FishingSystem {
   }
 
   destroy() {
-    this.cancelFishing(false);
+    // Do NOT call cancelFishing() here: during scene SHUTDOWN the DisplayList has
+    // already destroyed player sprites (anims === undefined), so unlockAction()
+    // would throw and abort Phaser's SceneManager queue (root cause of freeze).
+    this.state = FISHING_STATES.IDLE;
+    this.stateTimerMs = 0;
     eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
     eventBus.off(EVENTS.CONFIRM_SLEEP, this._onConfirmSleep);
     eventBus.off(EVENTS.TOOL_CHANGED, this._onToolChanged);
-    if (this.bobberGfx) this.bobberGfx.destroy();
-    if (this.caughtFishIcon) this.caughtFishIcon.destroy();
+    try {
+      if (this.bobberGfx && this.bobberGfx.scene) this.bobberGfx.destroy();
+    } catch (err) {
+      console.warn('[FishingSystem] bobber destroy failed', err);
+    }
+    try {
+      if (this.caughtFishIcon && this.caughtFishIcon.scene) this.caughtFishIcon.destroy();
+    } catch (err) {
+      console.warn('[FishingSystem] fish icon destroy failed', err);
+    }
+    this.bobberGfx = null;
+    this.caughtFishIcon = null;
+    this.scene = null;
   }
 }

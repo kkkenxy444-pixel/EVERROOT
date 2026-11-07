@@ -3,8 +3,7 @@
  * (1024x1024 px, 16x16 px per tile -> 64 columns x 64 rows = 4096 tiles).
  *
  * Formula: index = row * 64 + col
- * Every index below was visually verified via zoomed tile inspection and can be
- * cross-checked interactively in `TilesetDebugScene` (`?scene=tileset` or press F2).
+ * Every index below was visually verified via zoomed tile inspection.
  */
 
 export const TILESET_META = Object.freeze({

@@ -8,7 +8,6 @@ export const SCENE_KEYS = Object.freeze({
   MENU: 'MenuScene',
   GAME: 'GameScene',
   UI: 'UIScene',
-  TILESET_DEBUG: 'TilesetDebugScene',
 });
 
 export const GAME = Object.freeze({
@@ -301,7 +300,7 @@ export const UI = Object.freeze({
 });
 
 export const DEBUG = Object.freeze({
-  // Toggle with ?debug=1 in the URL; ?scene=tileset opens the tileset viewer directly.
+  // Toggle with ?debug=1 in the URL.
   PHYSICS: false,
   ADD_COINS_AMOUNT: 100,
   FILL_SEEDS_AMOUNT: 5,

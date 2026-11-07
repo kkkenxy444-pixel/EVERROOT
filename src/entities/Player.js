@@ -40,6 +40,7 @@ export class Player {
     this.currentAction = null;
     this.actionLocked = false;
     this.footstepTimer = 0;
+    this._actionTimer = null;
 
     // Reusable target tile struct to avoid allocations
     this._targetTile = { tx: 0, ty: 0, worldX: 0, worldY: 0 };
@@ -56,22 +57,25 @@ export class Player {
   }
 
   get x() {
-    return this.container.x;
+    return this.container ? this.container.x : 0;
   }
 
   get y() {
-    return this.container.y;
+    return this.container ? this.container.y : 0;
   }
 
   setPosition(x, y) {
+    if (!this.container || !this.container.scene) return;
     this.container.setPosition(x, y);
     this.container.setDepth(DEPTH.Y_SORT_BASE + y);
   }
 
   getTileCoords() {
+    const cx = this.container ? this.container.x : 0;
+    const cy = this.container ? this.container.y : 0;
     return {
-      tx: Math.floor(this.container.x / TILE.SIZE),
-      ty: Math.floor(this.container.y / TILE.SIZE),
+      tx: Math.floor(cx / TILE.SIZE),
+      ty: Math.floor(cy / TILE.SIZE),
     };
   }
 
@@ -94,12 +98,14 @@ export class Player {
    * Synchronizes all 3 layers (`base`, `spikeyhair`, `tools`) to play the same animation action.
    */
   playSynced(action, ignoreIfPlaying = true) {
+    if (!this.layers || !this.container || !this.container.scene) return;
     if (ignoreIfPlaying && this.currentAction === action) return;
     this.currentAction = action;
 
     for (const part of CHARACTER_PARTS) {
       const animKey = `${charLayerKey(action, part)}_anim`;
       const sprite = this.layers[part];
+      if (!sprite || !sprite.anims || !sprite.scene) continue;
       sprite.setFlipX(this.flipX);
       sprite.play(animKey, false);
     }
@@ -110,11 +116,22 @@ export class Player {
    * locking movement until complete or `durationMs` elapses.
    */
   playOneShotAction(action, durationMs = 450, onComplete = null) {
+    if (!this.container || !this.container.scene) return;
     this.actionLocked = true;
-    this.body.setVelocity(0, 0);
+    if (this.body && this.body.enable) {
+      this.body.setVelocity(0, 0);
+    }
     this.playSynced(action, false);
 
-    this.scene.time.delayedCall(durationMs, () => {
+    if (this._actionTimer) {
+      this._actionTimer.remove(false);
+      this._actionTimer = null;
+    }
+
+    if (!this.scene || !this.scene.time) return;
+    this._actionTimer = this.scene.time.delayedCall(durationMs, () => {
+      this._actionTimer = null;
+      if (!this.container || !this.container.scene) return;
       this.actionLocked = false;
       if (this.currentAction === action) {
         this.playSynced('idle', false);
@@ -127,13 +144,17 @@ export class Player {
    * Locks player in a looping state animation (used by FishingSystem for `waiting` / `reeling`).
    */
   setLockedStateAnimation(action) {
+    if (!this.container || !this.container.scene) return;
     this.actionLocked = true;
-    this.body.setVelocity(0, 0);
+    if (this.body && this.body.enable) {
+      this.body.setVelocity(0, 0);
+    }
     this.playSynced(action, false);
   }
 
   unlockAction() {
     this.actionLocked = false;
+    if (!this.container || !this.container.scene) return;
     this.playSynced('idle', false);
   }
 
@@ -141,6 +162,7 @@ export class Player {
    * Per-frame update driven by GameScene.
    */
   update(delta, moveVec, isOnDirtCallback) {
+    if (!this.container || !this.container.scene || !this.body) return;
     if (this.actionLocked) {
       this.body.setVelocity(0, 0);
       this.container.setDepth(DEPTH.Y_SORT_BASE + this.container.y);
@@ -162,7 +184,8 @@ export class Player {
       if (Math.abs(vx) > 0.05) {
         this.flipX = vx < 0;
         for (const part of CHARACTER_PARTS) {
-          this.layers[part].setFlipX(this.flipX);
+          const sprite = this.layers[part];
+          if (sprite && sprite.scene) sprite.setFlipX(this.flipX);
         }
       }
 
@@ -192,7 +215,7 @@ export class Player {
   }
 
   _spawnDustPuff() {
-    if (!this.dustSprite) return;
+    if (!this.dustSprite || !this.dustSprite.scene || !this.dustSprite.anims) return;
     this.dustSprite.setPosition(
       this.container.x - this.facing.x * 4,
       this.container.y + 1
@@ -201,7 +224,24 @@ export class Player {
     this.dustSprite.setVisible(true);
     this.dustSprite.play(`${ASSET_KEYS.FX_DUST_WALK}_anim`, true);
     this.dustSprite.once('animationcomplete', () => {
-      if (this.dustSprite) this.dustSprite.setVisible(false);
+      if (this.dustSprite && this.dustSprite.scene) this.dustSprite.setVisible(false);
     });
+  }
+
+  destroy() {
+    if (this._actionTimer) {
+      try {
+        this._actionTimer.remove(false);
+      } catch {
+        // Ignore timer cleanup errors during scene teardown
+      }
+      this._actionTimer = null;
+    }
+    this.actionLocked = false;
+    this.layers = null;
+    this.body = null;
+    this.container = null;
+    this.dustSprite = null;
+    this.scene = null;
   }
 }

@@ -15,8 +15,7 @@ import { pixelTextStyle } from '../systems/FontLoader.js';
 
 /**
  * PreloadScene: loads all verified images, spritesheets, and audio from `src/data/assetKeys.js`
- * with a visual progress bar, then creates shared animations and transitions to MenuScene
- * (or TilesetDebugScene if `?scene=tileset` is in the URL).
+ * with a visual progress bar, then creates shared animations and transitions to MenuScene.
  */
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -143,12 +142,6 @@ export class PreloadScene extends Phaser.Scene {
     this._ensureFallbackTexturesForFailedAssets();
     AudioManager.init(this);
     this._createGlobalAnimations();
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('scene') === 'tileset') {
-      this.scene.start(SCENE_KEYS.TILESET_DEBUG, { returnScene: SCENE_KEYS.MENU });
-      return;
-    }
 
     this.scene.start(SCENE_KEYS.MENU, {
       failedAssetCount: this._failedAssets ? this._failedAssets.length : 0,

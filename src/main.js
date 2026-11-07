@@ -4,8 +4,127 @@ import { BootScene } from './scenes/BootScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { PreloadScene } from './scenes/PreloadScene.js';
-import { TilesetDebugScene } from './scenes/TilesetDebugScene.js';
 import { UIScene } from './scenes/UIScene.js';
+
+/**
+ * Always-on pure-DOM global error overlay (independent of Phaser and active even without ?debug=1).
+ * Captures `window` `error` and `unhandledrejection`, logs to console, and displays the error
+ * message + first stack frame in a compact red box at the top of the screen (tap to dismiss).
+ */
+function installGlobalErrorOverlay() {
+  if (typeof window === 'undefined' || window._everrootErrorOverlayInstalled) {
+    return;
+  }
+  window._everrootErrorOverlayInstalled = true;
+
+  let boxEl = null;
+
+  const ensureBox = () => {
+    if (boxEl && boxEl.parentNode) return boxEl;
+    if (typeof document === 'undefined' || !document.body) return null;
+
+    boxEl = document.createElement('div');
+    boxEl.id = 'everroot-error-overlay';
+    boxEl.style.cssText = [
+      'position:fixed',
+      'top:8px',
+      'left:8px',
+      'right:8px',
+      'max-width:680px',
+      'margin:0 auto',
+      'z-index:2147483647',
+      'background:rgba(122,20,20,0.96)',
+      'color:#fff6e0',
+      'border:2px solid #ff9b85',
+      'border-radius:6px',
+      'padding:8px 12px',
+      'font-family:monospace',
+      'font-size:13px',
+      'line-height:1.35',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.75)',
+      'word-break:break-word',
+      'pointer-events:auto',
+      'cursor:pointer',
+      'display:none',
+    ].join(';');
+
+    const dismiss = (ev) => {
+      if (ev && typeof ev.stopPropagation === 'function') {
+        ev.stopPropagation();
+      }
+      boxEl.style.display = 'none';
+    };
+    boxEl.addEventListener('click', dismiss);
+    boxEl.addEventListener('touchstart', dismiss, { passive: true });
+    document.body.appendChild(boxEl);
+    return boxEl;
+  };
+
+  const formatError = (errObj, fallbackMsg, file, line, col) => {
+    const msg =
+      errObj?.message ||
+      (typeof fallbackMsg === 'string' ? fallbackMsg : String(errObj || 'Unknown error'));
+    let firstStack = '';
+    if (errObj && typeof errObj.stack === 'string') {
+      const lines = errObj.stack
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const frame = lines.find((l) => l.startsWith('at ') || l.includes('.js') || l.includes('http'));
+      firstStack = frame || lines[1] || lines[0] || '';
+    }
+    if (!firstStack && file) {
+      firstStack = `${file}:${line || 0}:${col || 0}`;
+    }
+    return { msg, firstStack };
+  };
+
+  const showOverlay = (title, msg, firstStack) => {
+    const el = ensureBox();
+    if (!el) return;
+    el.textContent = '';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight:bold;color:#ffd866;margin-bottom:3px;';
+    header.textContent = `${title} (Tap kotak ini untuk tutup)`;
+    el.appendChild(header);
+
+    const body = document.createElement('div');
+    body.textContent = msg;
+    el.appendChild(body);
+
+    if (firstStack) {
+      const stackEl = document.createElement('div');
+      stackEl.style.cssText = 'color:#ffcdc2;font-size:12px;margin-top:3px;';
+      stackEl.textContent = firstStack;
+      el.appendChild(stackEl);
+    }
+
+    el.style.display = 'block';
+  };
+
+  window.addEventListener('error', (event) => {
+    const err = event?.error;
+    console.error('[Everroot Global Error]', err || event?.message || event);
+    const { msg, firstStack } = formatError(
+      err,
+      event?.message,
+      event?.filename,
+      event?.lineno,
+      event?.colno
+    );
+    showOverlay('ERROR', msg, firstStack);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    console.error('[Everroot Unhandled Rejection]', reason);
+    const { msg, firstStack } = formatError(reason, String(reason || 'Promise rejected'));
+    showOverlay('UNHANDLED REJECTION', msg, firstStack);
+  });
+}
+
+installGlobalErrorOverlay();
 
 /**
  * Installs a DPR-aware `getParentBounds` on Phaser's ScaleManager so `Scale.RESIZE`
@@ -104,7 +223,6 @@ const config = {
     MenuScene,
     GameScene,
     UIScene,
-    TilesetDebugScene,
   ],
 };
 

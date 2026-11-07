@@ -20,7 +20,7 @@
     npm run build              (wajib lolos tiap akhir tugas)
     npm run preview -- --host
 - Script di `package.json` memanggil `node ./node_modules/vite/bin/vite.js` langsung (shebang `/usr/bin/env` gagal di Termux).
-- URL debug: `?debug=1` (tombol `+100G` / `Hari+1` / `+Bibit`, F6/F7/F8, kotak collider), `?scene=tileset` (TilesetDebugScene).
+- URL debug: `?debug=1` (tombol `+100G` / `Hari+1` / `+Bibit`, F6/F7/F8, kotak collider).
 - Repo git ada di folder project (`.gitignore`: `node_modules/`, `dist/`). Commit sebelum tiap prompt besar. JANGAN push ke repo publik (lisensi aset).
 
 ## 3. Aset
@@ -53,7 +53,7 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 ## 6. Peta Kode
 - `src/main.js` (Game config, listener resize/orientationchange/visualViewport + `scale.refresh()`), `src/style.css` (layar penuh, canvas 100%).
 - **data/**: `gameConfig.js` (semua konstanta + helper `getWorldZoom`, `getUiScale`, `getPhysicalCanvasSize`, `isDebugModeEnabled`), `assetKeys.js` (key + path + frame 126 aset), `tileIndex.js` (index tile terverifikasi), `audioConfig.js` (BGM/ambience/SFX), `crops.js`, `items.js` (alat, item, 3 ikan).
-- **scenes/**: `BootScene` (muat font), `PreloadScene`, `MenuScene`, `GameScene` (rakit world/player/sistem, kamera, overlay waktu, buka ShopModal, tidur), `UIScene` (HUD 1 baris, inventory 12 slot, toast, indikator pancing, toolbar, TouchControls, ShopModal, popover Suara, overlay debug audio), `TilesetDebugScene`.
+- **scenes/**: `BootScene` (muat font), `PreloadScene`, `MenuScene`, `GameScene` (rakit world/player/sistem, kamera, overlay waktu, buka ShopModal, tidur), `UIScene` (HUD 1 baris, inventory 12 slot, toast, indikator pancing, toolbar, TouchControls, ShopModal, popover Suara, overlay debug audio).
 - **entities/**: `Player` (container 3 layer, aksi terkunci, debu langkah), `Crop` (petak + tanaman).
 - **systems/**: `EventBus`, `FontLoader`, `AudioManager`, `SaveSystem`, `InputSystem`, `WorldBuilder` (tilemap 4 layer, `isWaterTile`, label bangunan saat dekat), `InventorySystem`, `FarmingSystem`, `FishingSystem`, `TimeSystem`.
 - **ui/**: `TouchControls`, `ShopModal`.
@@ -73,9 +73,10 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 3. **Harga/keseimbangan ikan (terverifikasi di kode)**: Di `gameConfig.js` (`FISHING.FISH_PRICES`) & `items.js`, harga jual ikan memang sudah direbalancing pada M4 menjadi `fish_small = 6G`, `fish_medium = 12G`, `fish_large = 25G` (bukan 12/24/50G dari catatan M3 awal).
 4. Perilaku portrait (zoom dihitung dari tinggi layar) dan multitouch belum dites penuh di HP.
 5. Aset: lihat bagian 3 (ikon JPEG berekstensi .png, TODO_ASSET).
+6. **Freeze tombol Menu/Tileset `[SELESAI-BUILD]`**: Akar masalah (terbukti dari kode Phaser 3.90): saat `stop(GAME)`, `DisplayList#shutdown` menghancurkan sprite player LEBIH DULU (`sprite.anims = undefined`), lalu listener SHUTDOWN GameScene memanggil `FishingSystem.destroy()` → `cancelFishing()` → `Player.unlockAction()` → `sprite.play()` → TypeError. `SceneManager#processQueue` tidak punya try/catch, jadi `stop(UI)` + `start(MENU/TILESET)` tidak pernah dijalankan → layar beku. Diperbaiki: `FishingSystem.destroy` tidak lagi memanggil `cancelFishing`; `Player` diberi guard + `destroy()`; SHUTDOWN GameScene/UIScene/ShopModal/TilesetDebugScene dibuat tahan error (try/catch per sistem); `_saveCurrentState` menolak simpan bila container player sudah hilang. Overlay error DOM global aktif selalu (`main.js`). **Aturan**: di handler SHUTDOWN jangan pernah memanggil method yang menyentuh GameObject (sudah dihancurkan DisplayList).
 
 ## 9. Langkah Berikutnya
-1. **Konfirmasi tes HP (`[SELESAI-TES-HP]`)**: Uji keterbacaan font & scroll `ShopModal` (landscape 1612x720 & portrait), serta cek apakah suara berkeresek sudah hilang (gunakan `?debug=1` untuk memantau overlay suara aktif).
+1. **Konfirmasi tes HP (`[SELESAI-TES-HP]`)**: Tekan Menu dari HUD (termasuk saat sedang mancing) — harus pindah scene tanpa beku & tanpa kotak merah. Uji keterbacaan font & scroll `ShopModal` (landscape 1612x720 & portrait), serta cek apakah suara berkeresek sudah hilang (gunakan `?debug=1` untuk memantau overlay suara aktif).
 2. Setelah konfirmasi tes HP: lanjut ke Paket A (juice/feedback, target harian, upgrade di kios) atau Paket B (hewan dekoratif, burung/ambience, hujan).
 
 ## 10. Log Sesi
@@ -85,3 +86,4 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 | 2026-10-31 | Gemini 4 Argon | M3: inventory 12 slot, ShopModal, save v2, FishingSystem, `?debug=1` | Lolos (34 modul) |
 | 2026-10-31 | Gemini 4 Argon | M4: AudioManager, popover Suara, floating text, README, rebalancing mancing | Lolos (34 modul) |
 | 2026-10-31 | Gemini 4 Argon | Selesaikan perbaikan Font/UI (`ShopModal`, `UIScene`, `MenuScene`) & Audit Audio (`AudioManager` anti-stacking SFX, volume Ambience terpisah, overlay audio `?debug=1`) | Lolos (34 modul) |
+| 2026-10-31 | Gemini 4 Argon, Claude Opus 5.5 | Fix freeze Menu/Tileset (SHUTDOWN order DisplayList vs FishingSystem.destroy), overlay error DOM global, cleanup SHUTDOWN tahan error | Lolos (34 modul) |

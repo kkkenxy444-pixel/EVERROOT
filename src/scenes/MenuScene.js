@@ -15,7 +15,6 @@ import { SaveSystem } from '../systems/SaveSystem.js';
  *   1. "Mulai" / "Mulai Baru"
  *   2. "Lanjut (Hari X)" (when save exists in localStorage)
  *   3. "Hapus Save" (when save exists in localStorage)
- *   4. "Cek Tileset (Debug)" (opens `TilesetDebugScene` directly on mobile/PC)
  */
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -236,24 +235,7 @@ export class MenuScene extends Phaser.Scene {
         },
         btnFontPx
       );
-      y += spacing;
     }
-
-    this._createMenuButton(
-      cx,
-      y,
-      stdW,
-      btnH,
-      s,
-      'Cek Tileset (Debug)',
-      0x3b485e,
-      () => {
-        this._transitionTo(SCENE_KEYS.TILESET_DEBUG, {
-          returnScene: SCENE_KEYS.MENU,
-        });
-      },
-      btnFontPx
-    );
   }
 
   /**

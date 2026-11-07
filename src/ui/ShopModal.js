@@ -133,6 +133,15 @@ export class ShopModal {
   }
 
   render() {
+    if (!this.container || !this.container.scene) return;
+    if (this.listContainer) {
+      try {
+        if (this.listContainer.scene) this.listContainer.clearMask(false);
+      } catch {
+        // ignore
+      }
+      this.listContainer = null;
+    }
     this.container.removeAll(true);
     if (!this.isOpen) return;
 
@@ -734,20 +743,46 @@ export class ShopModal {
   }
 
   destroy() {
-    if (this.scene?.input) {
-      this.scene.input.off('pointerdown', this._onPointerDown);
-      this.scene.input.off('pointermove', this._onPointerMove);
-      this.scene.input.off('pointerup', this._onPointerUp);
-      this.scene.input.off('wheel', this._onWheel);
+    try {
+      if (this.scene?.input) {
+        this.scene.input.off('pointerdown', this._onPointerDown);
+        this.scene.input.off('pointermove', this._onPointerMove);
+        this.scene.input.off('pointerup', this._onPointerUp);
+        this.scene.input.off('wheel', this._onWheel);
+      }
+      if (this.scene?.input?.keyboard && this._onKeyDown) {
+        this.scene.input.keyboard.off('keydown', this._onKeyDown);
+      }
+    } catch (err) {
+      console.warn('[ShopModal] listener cleanup failed', err);
     }
-    if (this.scene?.input?.keyboard && this._onKeyDown) {
-      this.scene.input.keyboard.off('keydown', this._onKeyDown);
+    try {
+      if (this.listContainer && this.listContainer.scene) {
+        this.listContainer.clearMask(false);
+      }
+    } catch {
+      // ignore
     }
-    if (this._maskGfx) {
-      this._maskGfx.destroy();
+    this.listContainer = null;
+    try {
+      if (this._listMask) this._listMask.destroy();
+    } catch {
+      // ignore
     }
-    if (this.container) {
-      this.container.destroy(true);
+    this._listMask = null;
+    try {
+      if (this._maskGfx) this._maskGfx.destroy();
+    } catch {
+      // ignore
     }
+    this._maskGfx = null;
+    try {
+      // DisplayList shutdown may have destroyed it already (scene === undefined)
+      if (this.container && this.container.scene) this.container.destroy(true);
+    } catch (err) {
+      console.warn('[ShopModal] container destroy failed', err);
+    }
+    this.container = null;
+    this.isOpen = false;
   }
 }

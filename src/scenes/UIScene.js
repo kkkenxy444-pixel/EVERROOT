@@ -19,7 +19,7 @@ import { TouchControls } from '../ui/TouchControls.js';
  * UIScene: Parallel overlay scene rendered at native physical screen resolution
  * using integer `uiScale = getUiScale(height)`:
  * - Single compact top row: Day/Time/Phase, Coins, active seed badge, and a collapsible
- *   12-slot compact inventory toggle button (plus compact Tileset & Menu buttons at top-right)
+ *   12-slot compact inventory toggle button (plus compact Audio & Menu buttons at top-right)
  * - Single-line auto-hiding Toast at top-center
  * - Bottom-center toolbar (Hoe, Watering Can, Seeds with active seed icon/count, Fishing Rod)
  * - Custom on-screen TouchControls (bottom-left joystick + bottom-right AKSI / ALAT / BIBIT)
@@ -40,6 +40,7 @@ export class UIScene extends Phaser.Scene {
     this.uiScale = getUiScale(this.viewWidth, this.viewHeight);
     this.storageOpen = false;
     this.audioOpen = false;
+    this._leavingScene = false;
     this._currentHint = '';
     this._currentToast = '';
     this._lastCoins = this.gameScene?.gameState?.coins ?? null;
@@ -59,6 +60,37 @@ export class UIScene extends Phaser.Scene {
     this._relayout(this.viewWidth, this.viewHeight);
     this._bindEvents();
     this._syncInitialHud();
+  }
+
+  /**
+   * Leaves gameplay to another scene (Menu). Guards against double taps
+   * and never lets a save/cleanup error abort the scene transition.
+   */
+  _leaveToScene(targetSceneKey, data = undefined) {
+    if (this._leavingScene) return;
+    this._leavingScene = true;
+    try {
+      if (this.gameScene && this.gameScene.flushSaveIfActive) {
+        this.gameScene.flushSaveIfActive();
+      }
+    } catch (err) {
+      console.error('[UIScene] save before leave failed', err);
+    }
+    if (this.touchControls && this.gameScene?.inputSystem) {
+      try {
+        this.gameScene.inputSystem.setTouchVector(0, 0);
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      this.scene.stop(SCENE_KEYS.GAME);
+      this.scene.stop(SCENE_KEYS.UI);
+      this.scene.start(targetSceneKey, data);
+    } catch (err) {
+      console.error('[UIScene] scene transition failed', err);
+      this._leavingScene = false;
+    }
   }
 
   _buildHudElements() {
@@ -306,7 +338,7 @@ export class UIScene extends Phaser.Scene {
     ]);
     this.hudRoot.add(this.topLeftGroup);
 
-    // --- 2. Top-Right Utility Buttons (Audio▾, Tileset & Menu) + Collapsible Audio Popover ---
+    // --- 2. Top-Right Utility Buttons (Audio▾ & Menu) + Collapsible Audio Popover ---
     const initAudio = AudioManager.getSettings();
     const topBtnH = 22 * s;
     this.btnAudio = this._createSmallTopButton(
@@ -322,35 +354,13 @@ export class UIScene extends Phaser.Scene {
       }
     );
 
-    this.btnTileset = this._createSmallTopButton(
-      52 * s,
-      topBtnH,
-      'Tileset',
-      fontBtnSm,
-      () => {
-        if (this.gameScene && this.gameScene.flushSaveIfActive) {
-          this.gameScene.flushSaveIfActive();
-        }
-        this.scene.stop(SCENE_KEYS.GAME);
-        this.scene.stop(SCENE_KEYS.UI);
-        this.scene.start(SCENE_KEYS.TILESET_DEBUG, {
-          returnScene: SCENE_KEYS.GAME,
-        });
-      }
-    );
-
     this.btnMenu = this._createSmallTopButton(
       46 * s,
       topBtnH,
       'Menu',
       fontBtnSm,
       () => {
-        if (this.gameScene && this.gameScene.flushSaveIfActive) {
-          this.gameScene.flushSaveIfActive();
-        }
-        this.scene.stop(SCENE_KEYS.GAME);
-        this.scene.stop(SCENE_KEYS.UI);
-        this.scene.start(SCENE_KEYS.MENU);
+        this._leaveToScene(SCENE_KEYS.MENU);
       }
     );
 
@@ -434,7 +444,6 @@ export class UIScene extends Phaser.Scene {
 
     this.hudRoot.add([
       this.btnAudio,
-      this.btnTileset,
       this.btnMenu,
       this.audioPopover,
     ]);
@@ -848,11 +857,9 @@ export class UIScene extends Phaser.Scene {
     if (this.btnMenu) {
       this.btnMenu.setPosition(w - safeX - 23 * s, topBtnY);
     }
-    if (this.btnTileset) {
-      this.btnTileset.setPosition(w - safeX - 76 * s, topBtnY);
-    }
     if (this.btnAudio) {
-      this.btnAudio.setPosition(w - safeX - 133 * s, topBtnY);
+      // Menu is 46s wide; 4s gap; Suara is 54s wide → center at 46 + 4 + 27 = 77s
+      this.btnAudio.setPosition(w - safeX - 77 * s, topBtnY);
     }
     if (this.audioPopover) {
       this.audioPopover.setPosition(w - safeX, topBtnY + 13 * s);
@@ -1164,8 +1171,23 @@ export class UIScene extends Phaser.Scene {
         this._debugAudioTimer.remove(false);
         this._debugAudioTimer = null;
       }
-      if (this.touchControls) this.touchControls.destroy();
-      if (this.shopModal) this.shopModal.destroy();
+      if (this._toastTimer) {
+        this._toastTimer.remove(false);
+        this._toastTimer = null;
+      }
+      try {
+        if (this.touchControls) this.touchControls.destroy();
+      } catch (err) {
+        console.error('[UIScene] touchControls.destroy failed', err);
+      }
+      try {
+        if (this.shopModal) this.shopModal.destroy();
+      } catch (err) {
+        console.error('[UIScene] shopModal.destroy failed', err);
+      }
+      this.touchControls = null;
+      this.shopModal = null;
+      this.gameScene = null;
     });
   }
 }
