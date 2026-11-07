@@ -21,6 +21,7 @@ export class TimeSystem {
       ? this.gameState.minute
       : TIME.START_MINUTE;
 
+    this._tintState = { color: 0xffffff, alpha: 0 };
     this.currentPhase = this.getPhaseForHour(this.gameState.hour);
   }
 
@@ -35,10 +36,73 @@ export class TimeSystem {
 
   getPhaseForHour(hour) {
     const phases = TIME.PHASES;
-    if (hour >= phases.NIGHT.startHour) return phases.NIGHT;
+    if (hour >= phases.NIGHT.startHour || hour < 5) return phases.NIGHT;
     if (hour >= phases.AFTERNOON.startHour) return phases.AFTERNOON;
     if (hour >= phases.NOON.startHour) return phases.NOON;
     return phases.MORNING;
+  }
+
+  /**
+   * Returns exact fractional in-game hour (including sub-step elapsedMs when unpaused).
+   */
+  getExactHour() {
+    const extraMinutes = this.paused
+      ? 0
+      : Math.min(TIME.MINUTES_STEP, this.elapsedMs / TIME.MS_PER_GAME_MINUTE);
+    const total = this.gameState.hour + (this.gameState.minute + extraMinutes) / 60;
+    return Math.max(0, Math.min(24, total));
+  }
+
+  /**
+   * Smoothly interpolates `{ color, alpha }` from `TIME.TINT_KEYFRAMES` for a given fractional hour.
+   * Mutates and returns `out` to avoid per-frame object allocations.
+   */
+  getTintForHour(fractionalHour, out = this._tintState) {
+    const kf = TIME.TINT_KEYFRAMES;
+    if (!kf || kf.length === 0) {
+      out.color = 0xffffff;
+      out.alpha = 0;
+      return out;
+    }
+
+    let h = Number.isFinite(fractionalHour) ? fractionalHour % 24 : TIME.START_HOUR;
+    if (h < 0) h += 24;
+    if (fractionalHour === 24) h = 24;
+
+    let a = kf[0];
+    let b = kf[kf.length - 1];
+    for (let i = 0; i < kf.length - 1; i++) {
+      if (h >= kf[i].hour && h <= kf[i + 1].hour) {
+        a = kf[i];
+        b = kf[i + 1];
+        break;
+      }
+    }
+
+    const span = b.hour - a.hour;
+    const rawT = span > 0 ? Math.max(0, Math.min(1, (h - a.hour) / span)) : 0;
+    // Smoothstep easing so transitions between keyframes have no sharp corners
+    const t = rawT * rawT * (3 - 2 * rawT);
+
+    const ar = (a.color >> 16) & 0xff;
+    const ag = (a.color >> 8) & 0xff;
+    const ab = a.color & 0xff;
+
+    const br = (b.color >> 16) & 0xff;
+    const bg = (b.color >> 8) & 0xff;
+    const bb = b.color & 0xff;
+
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+
+    out.color = (r << 16) | (g << 8) | bl;
+    out.alpha = a.alpha + (b.alpha - a.alpha) * t;
+    return out;
+  }
+
+  getCurrentTint(out = this._tintState) {
+    return this.getTintForHour(this.getExactHour(), out);
   }
 
   formatClock(hour = this.gameState.hour, minute = this.gameState.minute) {

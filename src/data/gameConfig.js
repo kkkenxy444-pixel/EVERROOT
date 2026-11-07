@@ -143,11 +143,26 @@ export const TIME = Object.freeze({
   SLEEP_HOLD_MS: 320,
   SLEEP_FADE_IN_MS: 420,
   PHASES: Object.freeze({
-    MORNING: { id: 'pagi', label: 'Pagi', startHour: 6, color: 0xffebb3, alpha: 0.08 },
-    NOON: { id: 'siang', label: 'Siang', startHour: 11, color: 0xffffff, alpha: 0.0 },
-    AFTERNOON: { id: 'sore', label: 'Sore', startHour: 16, color: 0xff8c42, alpha: 0.24 },
-    NIGHT: { id: 'malam', label: 'Malam', startHour: 19, color: 0x0e1a38, alpha: 0.5 },
+    MORNING: { id: 'pagi', label: 'Pagi', startHour: 6, color: 0xffe4a0, alpha: 0.04 },
+    NOON: { id: 'siang', label: 'Siang', startHour: 10, color: 0xffffff, alpha: 0.0 },
+    AFTERNOON: { id: 'sore', label: 'Sore', startHour: 16, color: 0xff7d34, alpha: 0.13 },
+    NIGHT: { id: 'malam', label: 'Malam', startHour: 19, color: 0x12163a, alpha: 0.45 },
   }),
+  // Keyframe pencahayaan dunia 24 jam (diinterpolasi halus berdasarkan jam + menit)
+  // Pagi (06-10) -> Siang (10-16) -> Sore (16-19) -> Senja-Malam (19-22) -> Malam (22-05) -> Fajar (05-06)
+  TINT_KEYFRAMES: Object.freeze([
+    Object.freeze({ hour: 0, phase: 'malam', color: 0x0e1233, alpha: 0.47 }),
+    Object.freeze({ hour: 5, phase: 'malam', color: 0x181c42, alpha: 0.42 }),
+    Object.freeze({ hour: 5.5, phase: 'fajar', color: 0xc86b58, alpha: 0.18 }),
+    Object.freeze({ hour: 6, phase: 'pagi', color: 0xffe4a0, alpha: 0.04 }),
+    Object.freeze({ hour: 10, phase: 'siang', color: 0xffe4a0, alpha: 0.0 }),
+    Object.freeze({ hour: 16, phase: 'sore', color: 0xff8838, alpha: 0.0 }),
+    Object.freeze({ hour: 17.5, phase: 'sore', color: 0xff7d34, alpha: 0.12 }),
+    Object.freeze({ hour: 19, phase: 'senja', color: 0xe66838, alpha: 0.15 }),
+    Object.freeze({ hour: 20.5, phase: 'senja', color: 0x302458, alpha: 0.31 }),
+    Object.freeze({ hour: 22, phase: 'malam', color: 0x12163a, alpha: 0.45 }),
+    Object.freeze({ hour: 24, phase: 'malam', color: 0x0e1233, alpha: 0.47 }),
+  ]),
 });
 
 export const FARMING = Object.freeze({

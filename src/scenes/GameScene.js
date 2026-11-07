@@ -103,14 +103,17 @@ export class GameScene extends Phaser.Scene {
     // 8. Day/Night phase overlay (camera-fixed tint rectangle) + TimeSystem
     const initW = this.scale.width || GAME.WIDTH;
     const initH = this.scale.height || GAME.HEIGHT;
+    this._lastTintColor = -1;
+    this._lastTintAlpha = -1;
     this.dayNightOverlay = this.add
-      .rectangle(initW / 2, initH / 2, initW * 2, initH * 2, 0xffffff, 0)
+      .rectangle(initW / 2, initH / 2, initW * 2, initH * 2, 0xffffff, 1)
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
+      .setAlpha(0)
       .setDepth(DEPTH.OVERLAY);
 
     this.timeSystem = new TimeSystem(this.gameState);
-    this._applyPhaseOverlay(this.timeSystem.currentPhase, false);
+    this._applyDayNightTint(this.timeSystem.getCurrentTint());
 
     // 9. Camera follow with world bounds & integer zoom calculated from screen short edge
     const cam = this.cameras.main;
@@ -166,8 +169,15 @@ export class GameScene extends Phaser.Scene {
         this._emitToolChanged();
       }
     };
-    this._onPhaseChanged = (phase) => {
-      this._applyPhaseOverlay(phase, true);
+    this._onPhaseChanged = () => {
+      if (this.timeSystem) {
+        this._applyDayNightTint(this.timeSystem.getCurrentTint());
+      }
+    };
+    this._onTimeUpdated = () => {
+      if (this.timeSystem) {
+        this._applyDayNightTint(this.timeSystem.getCurrentTint());
+      }
     };
     this._onConfirmSleep = (opts) => {
       this._startSleepSequence(Boolean(opts?.autoSleep));
@@ -215,6 +225,7 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.INPUT_CYCLE_TOOL, this._onCycleTool);
     eventBus.on(EVENTS.INPUT_SELECT_TOOL, this._onSelectTool);
     eventBus.on(EVENTS.PHASE_CHANGED, this._onPhaseChanged);
+    eventBus.on(EVENTS.TIME_UPDATED, this._onTimeUpdated);
     eventBus.on(EVENTS.CONFIRM_SLEEP, this._onConfirmSleep);
     eventBus.on(EVENTS.FARM_ACTION_FEEDBACK, this._onFarmFeedback);
     eventBus.on(EVENTS.FARM_PLOT_UPDATED, this._onFarmPlotUpdated);
@@ -257,6 +268,7 @@ export class GameScene extends Phaser.Scene {
       eventBus.off(EVENTS.INPUT_CYCLE_TOOL, this._onCycleTool);
       eventBus.off(EVENTS.INPUT_SELECT_TOOL, this._onSelectTool);
       eventBus.off(EVENTS.PHASE_CHANGED, this._onPhaseChanged);
+      eventBus.off(EVENTS.TIME_UPDATED, this._onTimeUpdated);
       eventBus.off(EVENTS.CONFIRM_SLEEP, this._onConfirmSleep);
       eventBus.off(EVENTS.FARM_ACTION_FEEDBACK, this._onFarmFeedback);
       eventBus.off(EVENTS.FARM_PLOT_UPDATED, this._onFarmPlotUpdated);
@@ -332,25 +344,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  _applyPhaseOverlay(phase, animate = true) {
-    if (!this.dayNightOverlay || !phase) return;
-    this.dayNightOverlay.setFillStyle(phase.color, this.dayNightOverlay.alpha);
-
-    if (this._overlayTween) {
-      this._overlayTween.stop();
-      this._overlayTween = null;
+  _applyDayNightTint(tint) {
+    if (!this.dayNightOverlay || !tint) return;
+    const color = tint.color;
+    const alpha = tint.alpha;
+    if (
+      this._lastTintColor === color &&
+      this._lastTintAlpha !== -1 &&
+      Math.abs(this._lastTintAlpha - alpha) < 0.0005
+    ) {
+      return;
     }
-
-    if (animate && this.tweens) {
-      this._overlayTween = this.tweens.add({
-        targets: this.dayNightOverlay,
-        alpha: phase.alpha,
-        duration: TIME.OVERLAY_TWEEN_MS,
-        ease: 'Sine.easeInOut',
-      });
-    } else {
-      this.dayNightOverlay.setAlpha(phase.alpha);
-    }
+    this._lastTintColor = color;
+    this._lastTintAlpha = alpha;
+    // Keep fillAlpha = 1 and drive GameObject alpha directly so Phaser does not multiply them
+    this.dayNightOverlay.setFillStyle(color, 1);
+    this.dayNightOverlay.setAlpha(alpha);
   }
 
   _saveCurrentState() {
@@ -612,6 +621,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.timeSystem && !this.isSleeping) {
       this.timeSystem.update(delta);
+      this._applyDayNightTint(this.timeSystem.getCurrentTint());
     }
 
     const moveVec = this.inputSystem.getMovementVector();
