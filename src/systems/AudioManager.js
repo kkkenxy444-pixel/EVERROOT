@@ -334,15 +334,13 @@ class AudioManagerClass {
       const targetVol = this._getEffectiveAmbienceVolume(baseVol);
       const nextAmb = this.sound.add(ambCfg.key, {
         loop: true,
-        volume: prevAmb ? 0 : targetVol,
+        volume: 0,
       });
       this.currentAmbience = nextAmb;
       this.currentAmbienceKey = ambCfg.key;
       nextAmb.play();
 
-      if (prevAmb) {
-        this._crossfadeTracks(prevAmb, nextAmb, targetVol, '_ambFadeTimer');
-      }
+      this._crossfadeTracks(prevAmb, nextAmb, targetVol, '_ambFadeTimer');
     } catch {
       this._fadeOutAndDestroy(prevAmb, '_ambFadeTimer');
     }
@@ -395,18 +393,20 @@ class AudioManagerClass {
   }
 
   _fadeOutAndDestroy(soundObj, timerProp) {
-    const fadingProp =
-      timerProp === '_bgmFadeTimer' ? '_fadingBgm' : '_fadingAmbience';
-    if (this[timerProp]) {
-      clearInterval(this[timerProp]);
-      this[timerProp] = null;
+    if (!soundObj) {
+      const fadingProp =
+        timerProp === '_bgmFadeTimer' ? '_fadingBgm' : '_fadingAmbience';
+      if (this[timerProp]) {
+        clearInterval(this[timerProp]);
+        this[timerProp] = null;
+      }
+      if (this[fadingProp]) {
+        this._destroySoundSafe(this[fadingProp]);
+        this[fadingProp] = null;
+      }
+      return;
     }
-    if (this[fadingProp] && this[fadingProp] !== soundObj) {
-      this._destroySoundSafe(this[fadingProp]);
-      this[fadingProp] = null;
-    }
-    if (!soundObj) return;
-    this._destroySoundSafe(soundObj);
+    this._crossfadeTracks(soundObj, null, 0, timerProp);
   }
 
   _destroySoundSafe(soundObj) {

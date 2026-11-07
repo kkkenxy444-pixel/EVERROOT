@@ -580,6 +580,13 @@ export class WorldBuilder {
     return this.dirtTiles.has(`${tx},${ty}`);
   }
 
+  isTileBlocked(tx, ty) {
+    return (
+      this.blockedTiles.has(`${tx},${ty}`) ||
+      this.waterTiles.has(`${tx},${ty}`)
+    );
+  }
+
   /**
    * Checks if player is standing next to or facing an interactive landmark:
    * - `'sleep'` at the House door (`MAP_ZONES.HOUSE.DOOR_TILE_X, DOOR_TILE_Y`)

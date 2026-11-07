@@ -86,6 +86,88 @@ export const MAP_ZONES = Object.freeze({
     TILE_X: 32,
     TILE_Y: 6,
   }),
+  // Open grass pastures near house & farm plot (away from main roads & water)
+  PASTURE: Object.freeze({
+    X0: 8,
+    Y0: 19,
+    X1: 20,
+    Y1: 22,
+  }),
+  POND_SHORE_SOUTH: Object.freeze({
+    X0: 26,
+    Y0: 22,
+    X1: 35,
+    Y1: 23,
+  }),
+  BIRD_MEADOW: Object.freeze({
+    X0: 8,
+    Y0: 6,
+    X1: 23,
+    Y1: 21,
+  }),
+});
+
+export const AMBIENT_ANIMALS = Object.freeze({
+  MAX_COUNT: 8,
+  IDLE_MIN_MS: 1600,
+  IDLE_MAX_MS: 4200,
+  WALK_MIN_MS: 1100,
+  WALK_MAX_MS: 2800,
+  SOUND_MAX_DISTANCE_PX: 72, // ~4.5 tiles from player
+  SOUND_MIN_INTERVAL_MS: 9000,
+  SOUND_MAX_INTERVAL_MS: 18000,
+  MORNING_CROW_HOUR: 6,
+  // 8 ambient animals total: 2 chickens, 1 cow, 1 sheep, 1 pig, 1 duck, 2 birds
+  SPAWNS: Object.freeze([
+    Object.freeze({
+      type: 'chicken',
+      count: 2,
+      zone: 'PASTURE',
+      speed: 18,
+      fps: 6,
+      originY: 0.78,
+    }),
+    Object.freeze({
+      type: 'cow',
+      count: 1,
+      zone: 'PASTURE',
+      speed: 11,
+      fps: 5,
+      originY: 0.82,
+    }),
+    Object.freeze({
+      type: 'sheep',
+      count: 1,
+      zone: 'PASTURE',
+      speed: 12,
+      fps: 5,
+      originY: 0.82,
+    }),
+    Object.freeze({
+      type: 'pig',
+      count: 1,
+      zone: 'PASTURE',
+      speed: 13,
+      fps: 5,
+      originY: 0.82,
+    }),
+    Object.freeze({
+      type: 'duck',
+      count: 1,
+      zone: 'POND_SHORE_SOUTH',
+      speed: 14,
+      fps: 6,
+      originY: 0.85,
+    }),
+    Object.freeze({
+      type: 'bird',
+      count: 2,
+      zone: 'BIRD_MEADOW',
+      speed: 22,
+      fps: 8,
+      originY: 0.85,
+    }),
+  ]),
 });
 
 export const PLAYER = Object.freeze({

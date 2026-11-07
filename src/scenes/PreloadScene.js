@@ -197,5 +197,13 @@ export class PreloadScene extends Phaser.Scene {
     ensureAnim(`${ASSET_KEYS.CHIMNEY_SMOKE}_anim`, ASSET_KEYS.CHIMNEY_SMOKE, 30, 12, -1);
     ensureAnim(`${ASSET_KEYS.FX_GLINT}_anim`, ASSET_KEYS.FX_GLINT, 6, 6, -1);
     ensureAnim(`${ASSET_KEYS.FX_DUST_WALK}_anim`, ASSET_KEYS.FX_DUST_WALK, 8, 18, 0);
+
+    // 3. Ambient village animals (4-frame walk animations)
+    ensureAnim(`${ASSET_KEYS.ANIMAL_CHICKEN}_walk`, ASSET_KEYS.ANIMAL_CHICKEN, 4, 6, -1);
+    ensureAnim(`${ASSET_KEYS.ANIMAL_COW}_walk`, ASSET_KEYS.ANIMAL_COW, 4, 5, -1);
+    ensureAnim(`${ASSET_KEYS.ANIMAL_PIG}_walk`, ASSET_KEYS.ANIMAL_PIG, 4, 5, -1);
+    ensureAnim(`${ASSET_KEYS.ANIMAL_SHEEP}_walk`, ASSET_KEYS.ANIMAL_SHEEP, 4, 5, -1);
+    ensureAnim(`${ASSET_KEYS.ANIMAL_DUCK}_walk`, ASSET_KEYS.ANIMAL_DUCK, 4, 6, -1);
+    ensureAnim(`${ASSET_KEYS.ANIMAL_BIRD}_walk`, ASSET_KEYS.ANIMAL_BIRD, 4, 8, -1);
   }
 }

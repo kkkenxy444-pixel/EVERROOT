@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../data/assetKeys.js';
 import {
+  AMBIENT_ANIMALS,
   CAMERA,
   DEBUG,
   DEPTH,
@@ -15,6 +16,7 @@ import {
   UI,
 } from '../data/gameConfig.js';
 import { TOOL_IDS, TOOLS } from '../data/items.js';
+import { AmbientAnimal } from '../entities/AmbientAnimal.js';
 import { Player } from '../entities/Player.js';
 import { AudioManager } from '../systems/AudioManager.js';
 import { eventBus, EVENTS } from '../systems/EventBus.js';
@@ -75,6 +77,11 @@ export class GameScene extends Phaser.Scene {
     const spawnY = this.gameState.player.tileY * TILE.SIZE + TILE.SIZE / 2;
     this.player = new Player(this, spawnX, spawnY);
     this.physics.add.collider(this.player.container, colliders);
+
+    // 3b. Spawn ambient village animals in pastures & pond shore
+    this.ambientAnimals = [];
+    this._lastRoosterDay = -1;
+    this._spawnAmbientAnimals();
 
     // 4. Target tile cursor highlight (shows which grid tile the player is aiming at)
     this.targetCursor = this.add.graphics().setDepth(DEPTH.SOIL + 0.6);
@@ -177,6 +184,15 @@ export class GameScene extends Phaser.Scene {
     this._onTimeUpdated = () => {
       if (this.timeSystem) {
         this._applyDayNightTint(this.timeSystem.getCurrentTint());
+      }
+      if (
+        this.gameState &&
+        this.gameState.hour === AMBIENT_ANIMALS.MORNING_CROW_HOUR &&
+        this.gameState.minute === 0 &&
+        this._lastRoosterDay !== this.gameState.day
+      ) {
+        this._lastRoosterDay = this.gameState.day;
+        AudioManager.playSfx(ASSET_KEYS.SFX_ANIMAL_CHICKEN);
       }
     };
     this._onConfirmSleep = (opts) => {
@@ -309,8 +325,73 @@ export class GameScene extends Phaser.Scene {
       safeDestroy('fishingSystem');
       safeDestroy('timeSystem');
       safeDestroy('player');
+      if (Array.isArray(this.ambientAnimals)) {
+        for (const animal of this.ambientAnimals) {
+          try {
+            animal.destroy();
+          } catch {
+            // ignore
+          }
+        }
+        this.ambientAnimals = [];
+      }
       this.player = null;
     });
+  }
+
+  _spawnAmbientAnimals() {
+    if (!this.worldBuilder || !AMBIENT_ANIMALS?.SPAWNS) return;
+
+    const canWalkTo = (wx, wy) => {
+      const tx = Math.floor(wx / TILE.SIZE);
+      const ty = Math.floor(wy / TILE.SIZE);
+      return !this.worldBuilder.isTileBlocked(tx, ty);
+    };
+
+    let totalSpawned = 0;
+    for (const def of AMBIENT_ANIMALS.SPAWNS) {
+      const zoneDef = MAP_ZONES[def.zone] || MAP_ZONES.PASTURE;
+      const bounds = {
+        minX: zoneDef.X0 * TILE.SIZE + 6,
+        minY: zoneDef.Y0 * TILE.SIZE + 6,
+        maxX: (zoneDef.X1 + 1) * TILE.SIZE - 6,
+        maxY: (zoneDef.Y1 + 1) * TILE.SIZE - 6,
+      };
+
+      for (let i = 0; i < def.count; i++) {
+        if (totalSpawned >= AMBIENT_ANIMALS.MAX_COUNT) break;
+
+        let sx = (bounds.minX + bounds.maxX) * 0.5;
+        let sy = (bounds.minY + bounds.maxY) * 0.5;
+        for (let attempt = 0; attempt < 16; attempt++) {
+          const rx =
+            bounds.minX +
+            ((i + 1 + attempt * 0.37) % 1) * (bounds.maxX - bounds.minX);
+          const ry =
+            bounds.minY +
+            ((i * 0.43 + attempt * 0.29 + 0.2) % 1) *
+              (bounds.maxY - bounds.minY);
+          if (canWalkTo(rx, ry)) {
+            sx = rx;
+            sy = ry;
+            break;
+          }
+        }
+
+        this.ambientAnimals.push(
+          new AmbientAnimal(this, {
+            type: def.type,
+            x: sx,
+            y: sy,
+            speed: def.speed,
+            originY: def.originY,
+            bounds,
+            canWalkTo,
+          })
+        );
+        totalSpawned += 1;
+      }
+    }
   }
 
   /**
@@ -395,7 +476,11 @@ export class GameScene extends Phaser.Scene {
     this.gameState.selectedToolId = tool.id;
     this._lastCursorTx = -1;
     this._lastCursorTy = -1;
-    AudioManager.playSfx(ASSET_KEYS.SFX_ITEM_EQUIP);
+    AudioManager.playSfx(
+      tool.id === TOOL_IDS.WATERING_CAN
+        ? ASSET_KEYS.SFX_TOOL_WATER_SELECT
+        : ASSET_KEYS.SFX_ITEM_EQUIP
+    );
     eventBus.emit(EVENTS.TOOL_CHANGED, tool, this.toolIndex);
   }
 
@@ -562,6 +647,11 @@ export class GameScene extends Phaser.Scene {
 
     if (!autoSleep) {
       AudioManager.playSfx(ASSET_KEYS.SFX_DOOR_OPEN);
+      this.time.delayedCall(220, () => {
+        AudioManager.playSfx(ASSET_KEYS.SFX_DOOR_CLOSE);
+      });
+    } else {
+      AudioManager.playSfx(ASSET_KEYS.SFX_UI_NOTIFY);
     }
     AudioManager.playSfx(ASSET_KEYS.SFX_DAY_END);
 
@@ -598,6 +688,7 @@ export class GameScene extends Phaser.Scene {
           if (rep) {
             if (rep.readyCount > 0) {
               cropSummary = `${rep.readyCount} tanaman siap panen! • Tersimpan`;
+              AudioManager.playSfx(ASSET_KEYS.SFX_UI_NOTIFY);
             } else if (rep.grownCount > 0) {
               cropSummary = `${rep.grownCount} tanaman tumbuh • Tersimpan`;
             } else if (rep.unwateredCount > 0) {
@@ -605,6 +696,7 @@ export class GameScene extends Phaser.Scene {
             }
           }
 
+          AudioManager.playSfx(ASSET_KEYS.SFX_DOOR_CLOSE);
           eventBus.emit(
             EVENTS.TOAST_MESSAGE,
             `Hari ${this.gameState.day} dimulai (06:00 Pagi) • ${cropSummary}`
@@ -633,6 +725,14 @@ export class GameScene extends Phaser.Scene {
       this.player.update(delta, moveVec, (tx, ty) =>
         this.worldBuilder.isDirtTile(tx, ty)
       );
+    }
+
+    if (this.ambientAnimals && this.ambientAnimals.length > 0) {
+      const px = this.player.x;
+      const py = this.player.y;
+      for (let i = 0; i < this.ambientAnimals.length; i++) {
+        this.ambientAnimals[i].update(delta, px, py);
+      }
     }
 
     // Update target tile cursor in front of (or under) player

@@ -69,7 +69,7 @@ export const AUDIO_CONFIG = Object.freeze({
    */
   PHASE_AMBIENCE: Object.freeze({
     pagi: { key: ASSET_KEYS.AMB_MORNING_BIRDS, volume: 0.09, loop: true },
-    siang: null,
+    siang: { key: ASSET_KEYS.AMB_DAY_CICADA, volume: 0.03, loop: true },
     sore: null,
     malam: { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, volume: 0.08, loop: true },
   }),
@@ -106,5 +106,8 @@ export const AUDIO_CONFIG = Object.freeze({
     [ASSET_KEYS.SFX_DOOR_OPEN]: { volume: 0.45, maxInstances: 1 },
     [ASSET_KEYS.SFX_DOOR_CLOSE]: { volume: 0.4, maxInstances: 1 },
     [ASSET_KEYS.SFX_CHEST_OPEN]: { volume: 0.5, maxInstances: 1 },
+    // Ambient animal calls (kept soft so they blend naturally and never crackle on mobile speakers)
+    [ASSET_KEYS.SFX_ANIMAL_CHICKEN]: { volume: 0.18, detuneJitter: 60, maxInstances: 1 },
+    [ASSET_KEYS.SFX_ANIMAL_COW]: { volume: 0.16, detuneJitter: 50, maxInstances: 1 },
   }),
 });

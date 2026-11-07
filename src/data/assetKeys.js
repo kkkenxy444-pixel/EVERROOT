@@ -40,6 +40,14 @@ export const ASSET_KEYS = Object.freeze({
   FX_GLINT: 'fx_glint',
   FX_DUST_WALK: 'fx_dust_walk',
 
+  // --- Ambient Animals (4-frame spritesheets) ---
+  ANIMAL_CHICKEN: 'animal_chicken',
+  ANIMAL_COW: 'animal_cow',
+  ANIMAL_PIG: 'animal_pig',
+  ANIMAL_SHEEP: 'animal_sheep',
+  ANIMAL_DUCK: 'animal_duck',
+  ANIMAL_BIRD: 'animal_bird',
+
   // --- Soil, Shipping Box, Generic Items ---
   SOIL_DRY: 'soil_dry',
   SOIL_WET: 'soil_wet',
@@ -61,6 +69,7 @@ export const ASSET_KEYS = Object.freeze({
 
   // --- Audio: Ambience ---
   AMB_MORNING_BIRDS: 'amb_morning_birds',
+  AMB_DAY_CICADA: 'amb_day_cicada',
   AMB_NIGHT_CRICKETS: 'amb_night_crickets',
   AMB_STREAM: 'amb_stream',
 
@@ -94,6 +103,8 @@ export const ASSET_KEYS = Object.freeze({
   SFX_DOOR_OPEN: 'sfx_door_open',
   SFX_DOOR_CLOSE: 'sfx_door_close',
   SFX_CHEST_OPEN: 'sfx_chest_open',
+  SFX_ANIMAL_CHICKEN: 'sfx_animal_chicken',
+  SFX_ANIMAL_COW: 'sfx_animal_cow',
 });
 
 /**
@@ -268,6 +279,49 @@ export const SPRITESHEET_ASSETS = Object.freeze([
     frameHeight: 9,
     frames: 8,
   },
+  // Ambient village animals (4-frame walk/idle strips)
+  {
+    key: ASSET_KEYS.ANIMAL_CHICKEN,
+    path: 'characters/animals/spr_deco_chicken_01_strip4.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 4,
+  },
+  {
+    key: ASSET_KEYS.ANIMAL_COW,
+    path: 'characters/animals/spr_deco_cow_strip4.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 4,
+  },
+  {
+    key: ASSET_KEYS.ANIMAL_PIG,
+    path: 'characters/animals/spr_deco_pig_01_strip4.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 4,
+  },
+  {
+    key: ASSET_KEYS.ANIMAL_SHEEP,
+    path: 'characters/animals/spr_deco_sheep_01_strip4.png',
+    frameWidth: 32,
+    frameHeight: 32,
+    frames: 4,
+  },
+  {
+    key: ASSET_KEYS.ANIMAL_DUCK,
+    path: 'characters/animals/spr_deco_duck_01_strip4.png',
+    frameWidth: 16,
+    frameHeight: 16,
+    frames: 4,
+  },
+  {
+    key: ASSET_KEYS.ANIMAL_BIRD,
+    path: 'characters/animals/spr_deco_bird_01_strip4.png',
+    frameWidth: 16,
+    frameHeight: 16,
+    frames: 4,
+  },
   // Character layered strips (9 actions x 3 parts = 27 strips, all 96x64 per frame)
   ...CHARACTER_ANIM_DEFS.flatMap((def) =>
     CHARACTER_PARTS.map((part) => ({
@@ -291,6 +345,7 @@ export const AUDIO_ASSETS = Object.freeze([
 
   // Ambience
   { key: ASSET_KEYS.AMB_MORNING_BIRDS, path: 'audio/ambience/morning-birds.wav' },
+  { key: ASSET_KEYS.AMB_DAY_CICADA, path: 'audio/ambience/plains_12_cicada_loop.wav' },
   { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, path: 'audio/ambience/night-crickets.wav' },
   { key: ASSET_KEYS.AMB_STREAM, path: 'audio/ambience/stream.wav' },
 
@@ -330,4 +385,6 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.SFX_DOOR_OPEN, path: 'audio/sfx/environment/door_open.wav' },
   { key: ASSET_KEYS.SFX_DOOR_CLOSE, path: 'audio/sfx/environment/door_close.wav' },
   { key: ASSET_KEYS.SFX_CHEST_OPEN, path: 'audio/sfx/home/life_chest_open_01.ogg' },
+  { key: ASSET_KEYS.SFX_ANIMAL_CHICKEN, path: 'audio/sfx/animals/farm_chicken_cluck.ogg' },
+  { key: ASSET_KEYS.SFX_ANIMAL_COW, path: 'audio/sfx/animals/farm_cow_moo.ogg' },
 ]);
