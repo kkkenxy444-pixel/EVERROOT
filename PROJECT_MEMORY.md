@@ -62,7 +62,7 @@ Semua `[SELESAI-BUILD]` (build lolos). Belum ada yang `[SELESAI-TES-HP]` secara 
 ## 7. Konvensi
 1. Pisahkan `scenes`, `entities`, `systems`, `ui`, `data`. Tiap fitur = system terpisah, komunikasi lewat `eventBus`, tanpa saling import langsung.
 2. Tanpa angka ajaib: konstanta di `gameConfig.js` / `crops.js` / `items.js` / `audioConfig.js`.
-3. Key aset lewat `assetKeys.js`, audio lewat `audioConfig.js`, index tile lewat `tileIndex.js` (jangan menebak; cek TilesetDebugScene).
+3. Key aset lewat `assetKeys.js`, audio lewat `audioConfig.js`, index tile lewat `tileIndex.js` (jangan menebak; cek tileIndex.js; TilesetDebugScene sudah dihapus).
 4. Jangan alokasi objek baru di `update()`. Lepas listener `eventBus` saat scene SHUTDOWN.
 
 ## 8. Masalah yang Diketahui
