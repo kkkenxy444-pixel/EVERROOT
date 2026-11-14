@@ -238,6 +238,20 @@ export class Player {
       this._actionTimer = null;
     }
     this.actionLocked = false;
+    try {
+      if (this.dustSprite && this.dustSprite.scene) {
+        this.dustSprite.destroy();
+      }
+    } catch {
+      // DisplayList may have destroyed it first during scene shutdown
+    }
+    try {
+      if (this.container && this.container.scene) {
+        this.container.destroy();
+      }
+    } catch {
+      // DisplayList may have destroyed it first during scene shutdown
+    }
     this.layers = null;
     this.body = null;
     this.container = null;

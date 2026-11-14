@@ -10,6 +10,9 @@ import {
   getWorldZoom,
   isDebugModeEnabled,
   LIVESTOCK,
+  MAP_IDS,
+  MAPS,
+  MAP_TRANSITION,
   MAP_ZONES,
   SCENE_KEYS,
   TILE,
@@ -51,67 +54,48 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.isSleeping = false;
     this.isShopOpen = false;
+    this.isTransitioning = false;
+    this._pendingMapSwitch = null;
+    this._gateArmedAt = 0;
     this.debugEnabled = isDebugModeEnabled();
     this._lastGrowthReport = null;
+    this._lastRoosterDay = -1;
+    this._lastCursorTx = -1;
+    this._lastCursorTy = -1;
+    this._lastCursorReady = false;
+    this._lastHint = null;
+    this._effectiveTarget = { tx: 0, ty: 0 };
+    this._morningCrowTimers = [];
 
-    // 1. Load initial or saved state
+    // 1. Load initial or saved state (old saves without mapId load in the farm)
     this.gameState =
       this.startMode === 'continue' && SaveSystem.hasSave()
         ? SaveSystem.load()
         : SaveSystem.createDefaultState();
+
+    this.currentMapId = MAPS[this.gameState.mapId]
+      ? this.gameState.mapId
+      : MAP_IDS.FARM;
+    this.gameState.mapId = this.currentMapId;
 
     this.toolIndex = Math.max(
       0,
       TOOLS.findIndex((t) => t.id === this.gameState.selectedToolId)
     );
 
-    // 2. Build outdoor map & static colliders
-    this.worldBuilder = new WorldBuilder(this);
-    const { widthPx, heightPx, colliders } = this.worldBuilder.build();
-    this.worldWidthPx = widthPx;
-    this.worldHeightPx = heightPx;
-    this.physics.world.setBounds(0, 0, widthPx, heightPx);
+    // 2. InventorySystem exists for the whole session (map switches keep it alive)
+    this.inventorySystem = new InventorySystem(this.gameState, () =>
+      this._saveCurrentState()
+    );
+
+    // 3. Build the current map, spawn the player, and create map-local systems
+    const savedSpawn = this._getSavedSpawnTile(this.currentMapId);
+    this._buildMap(this.currentMapId, 'default', savedSpawn);
 
     // Optional debug physics via `?debug=1`
     if (this.debugEnabled || DEBUG.PHYSICS) {
       this.physics.world.createDebugGraphic();
     }
-
-    // 3. Spawn 3-layer Player entity
-    const spawnX = this.gameState.player.tileX * TILE.SIZE + TILE.SIZE / 2;
-    const spawnY = this.gameState.player.tileY * TILE.SIZE + TILE.SIZE / 2;
-    this.player = new Player(this, spawnX, spawnY);
-    this.physics.add.collider(this.player.container, colliders);
-
-    // 3b. Spawn ambient village animals in pastures, meadow, & pond water
-    this.ambientAnimals = [];
-    this._morningCrowTimers = [];
-    this._lastRoosterDay = -1;
-    this._spawnAmbientAnimals();
-
-    // 4. Target tile cursor highlight (shows which grid tile the player is aiming at)
-    this.targetCursor = this.add.graphics().setDepth(DEPTH.SOIL + 0.6);
-    this._effectiveTarget = { tx: 0, ty: 0 };
-
-    // 5. InventorySystem (slot-based stacking, owned-seed cycling, buy/sell transactions)
-    this.inventorySystem = new InventorySystem(this.gameState, () =>
-      this._saveCurrentState()
-    );
-
-    // 6. FarmingSystem (grid plots, Crop entities, tilling, planting, watering, daily growth, harvest)
-    this.farmingSystem = new FarmingSystem(
-      this,
-      this.gameState,
-      (tx, ty) => this.worldBuilder.isFarmableTile(tx, ty),
-      this.inventorySystem
-    );
-
-    // 7. FishingSystem (casting, waiting, bite, reeling, caught + bobber)
-    this.fishingSystem = new FishingSystem(this, {
-      isWaterTile: (tx, ty) => this.worldBuilder.isWaterTile(tx, ty),
-      getCatchableFishIds: () => this.inventorySystem.getCatchableFishIds(),
-      addFishToInventory: (fishId) => this.inventorySystem.addItem(fishId, 1),
-    });
 
     // 8. Day/Night phase overlay (camera-fixed tint rectangle) + TimeSystem
     const initW = this.scale.width || GAME.WIDTH;
@@ -134,7 +118,6 @@ export class GameScene extends Phaser.Scene {
 
     // 9. Camera follow with world bounds & integer zoom calculated from screen short edge
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, widthPx, heightPx);
     cam.setRoundPixels(true);
     this._updateCameraAndOverlay(initW, initH);
     cam.startFollow(this.player.container, true, CAMERA.LERP, CAMERA.LERP);
@@ -177,13 +160,408 @@ export class GameScene extends Phaser.Scene {
       SCENE_KEYS.GAME,
       this.timeSystem.currentPhase?.id || 'pagi'
     );
+
+    // 14. Debug-only live object counter (`?debug=1`) to spot leaks after map switches
+    this._createDebugStats();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Map lifecycle (one GameScene, many maps)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates map-local systems. The village intentionally has no farm plot,
+   * fishing rod target, ambient animals, livestock icons, or farming cursor.
+   */
+  _createMapLocalSystems() {
+    const isFarm = this.currentMapId === MAP_IDS.FARM;
+    this.targetCursor = null;
+    this.farmingSystem = null;
+    this.fishingSystem = null;
+    this.ambientAnimals = [];
+    this.animalTerrain = null;
+    this._lastCursorTx = -1;
+    this._lastCursorTy = -1;
+    this._lastCursorReady = false;
+
+    if (!isFarm) {
+      this._lastHint = '';
+      eventBus.emit(EVENTS.INTERACTION_HINT, '');
+      return;
+    }
+
+    this.targetCursor = this.add.graphics().setDepth(DEPTH.SOIL + 0.6);
+    this._morningCrowTimers = [];
+
+    this.farmingSystem = new FarmingSystem(
+      this,
+      this.gameState,
+      (tx, ty) => this.worldBuilder.isFarmableTile(tx, ty),
+      this.inventorySystem
+    );
+
+    this.fishingSystem = new FishingSystem(this, {
+      isWaterTile: (tx, ty) => this.worldBuilder.isWaterTile(tx, ty),
+      getCatchableFishIds: () => this.inventorySystem.getCatchableFishIds(),
+      addFishToInventory: (fishId) => this.inventorySystem.addItem(fishId, 1),
+    });
+
+    // Re-apply rain watering when entering the farm during an active rain period
+    if (this.weatherSystem && this.weatherSystem.isRaining) {
+      try {
+        this.farmingSystem.applyRainWatering();
+      } catch (err) {
+        console.warn('[GameScene] rain re-water on map entry failed', err);
+      }
+    }
+
+    this._spawnAmbientAnimals();
+  }
+
+  /**
+   * Destroys map-local systems in the requested order: Farming, Fishing,
+   * AmbientAnimal (and their product icons), AnimalTerrain, farming cursor/hint.
+   * Every step is isolated so one failure cannot abort the rest of the switch.
+   */
+  _destroyMapLocalSystems() {
+    const safe = (name, fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.error(`[GameScene] destroy ${name} failed`, err);
+      }
+    };
+
+    safe('farmingSystem', () => {
+      if (this.farmingSystem) this.farmingSystem.destroy();
+      this.farmingSystem = null;
+    });
+    safe('fishingSystem', () => {
+      if (this.fishingSystem) this.fishingSystem.destroy();
+      this.fishingSystem = null;
+    });
+    safe('ambientAnimals', () => {
+      if (Array.isArray(this.ambientAnimals)) {
+        for (const animal of this.ambientAnimals) animal.destroy();
+      }
+      this.ambientAnimals = [];
+    });
+    this.animalTerrain = null;
+    safe('morningCrowTimers', () => this._clearMorningCrowTimers());
+    safe('targetCursor', () => {
+      if (this.targetCursor) this.targetCursor.destroy();
+      this.targetCursor = null;
+    });
+    this._lastCursorTx = -1;
+    this._lastCursorTy = -1;
+    this._lastCursorReady = false;
+    this._lastHint = '';
+    eventBus.emit(EVENTS.INTERACTION_HINT, '');
+  }
+
+  _buildMap(mapId, entryPoint = 'default', spawnTile = null) {
+    const def = MAPS[mapId] ? MAPS[mapId] : MAPS[MAP_IDS.FARM];
+    this.currentMapId = def.id;
+    this.gameState.mapId = def.id;
+
+    this.worldBuilder = new WorldBuilder(this, def.id);
+    const { widthPx, heightPx, colliders } = this.worldBuilder.build();
+    this.worldWidthPx = widthPx;
+    this.worldHeightPx = heightPx;
+    this.physics.world.setBounds(0, 0, widthPx, heightPx);
+
+    const spawn = spawnTile
+      ? {
+          x: spawnTile.tileX * TILE.SIZE + TILE.SIZE / 2,
+          y: spawnTile.tileY * TILE.SIZE + TILE.SIZE / 2,
+        }
+      : this._getEntrySpawn(def.id, entryPoint);
+
+    this.player = new Player(this, spawn.x, spawn.y);
+    this.playerCollider = this.physics.add.collider(
+      this.player.container,
+      colliders
+    );
+
+    this._createMapLocalSystems();
+
+    const w = this.scale?.width || GAME.WIDTH;
+    const h = this.scale?.height || GAME.HEIGHT;
+    this._updateCameraAndOverlay(w, h);
+    this._applyCameraFollow();
+  }
+
+  /**
+   * Removes the current map. Systems first, then the WorldBuilder (tilemap, layers,
+   * sprites, labels, zones/static bodies), and the player last.
+   */
+  _teardownMap() {
+    this._destroyMapLocalSystems();
+
+    try {
+      if (this.playerCollider) this.playerCollider.destroy();
+    } catch (err) {
+      console.error('[GameScene] player collider destroy failed', err);
+    }
+    this.playerCollider = null;
+
+    const worldBuilder = this.worldBuilder;
+    this.worldBuilder = null;
+    try {
+      if (worldBuilder) worldBuilder.destroy();
+    } catch (err) {
+      console.error('[GameScene] WorldBuilder destroy failed', err);
+    }
+
+    const player = this.player;
+    this.player = null;
+    try {
+      if (player) player.destroy();
+    } catch (err) {
+      console.error('[GameScene] player destroy failed', err);
+    }
+
+    this.worldWidthPx = 0;
+    this.worldHeightPx = 0;
+  }
+
+  /**
+   * Starts an automatic map transition behind a camera fade. No Phaser Scene is
+   * stopped or created; only map-local objects are rebuilt.
+   */
+  _switchMap(mapId, entryPoint = 'default', options = {}) {
+    if (this.isTransitioning) return false;
+    const targetId = MAPS[mapId] ? mapId : MAP_IDS.FARM;
+    if (targetId === this.currentMapId) return false;
+
+    this.isTransitioning = true;
+    this._pendingMapSwitch = {
+      mapId: targetId,
+      entryPoint,
+      options: options || {},
+    };
+
+    this._cancelFishingForTransition();
+    this._closePanelsForTransition();
+    this._resetInputForTransition();
+
+    const cam = this.cameras?.main;
+    if (!cam) {
+      this._completeMapSwitch();
+      return true;
+    }
+    cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () =>
+      this._completeMapSwitch()
+    );
+    cam.fadeOut(MAP_TRANSITION.FADE_MS, 0, 0, 0);
+    return true;
+  }
+
+  _completeMapSwitch() {
+    const pending = this._pendingMapSwitch;
+    if (!pending) {
+      this.isTransitioning = false;
+      return;
+    }
+
+    let success = false;
+    try {
+      this._teardownMap();
+      this.currentMapId = pending.mapId;
+      this.gameState.mapId = pending.mapId;
+      this._buildMap(pending.mapId, pending.entryPoint);
+      success = true;
+    } catch (err) {
+      console.error('[GameScene] map switch failed, falling back to farm', err);
+      try {
+        this._teardownMap();
+        this.currentMapId = MAP_IDS.FARM;
+        this.gameState.mapId = MAP_IDS.FARM;
+        this._buildMap(MAP_IDS.FARM, 'default');
+        success = true;
+      } catch (fallbackErr) {
+        console.error('[GameScene] farm fallback build failed', fallbackErr);
+      }
+    }
+
+    this.isTransitioning = false;
+    this._pendingMapSwitch = null;
+    this._gateArmedAt = this.time.now + MAP_TRANSITION.GATE_ARM_DELAY_MS;
+
+    if (success) {
+      this._saveCurrentState();
+    }
+    if (this.inputSystem) {
+      this.inputSystem.enabled = !this.isSleeping;
+      this.inputSystem.setTouchVector(0, 0);
+    }
+
+    const cam = this.cameras?.main;
+    if (cam) {
+      cam.fadeIn(MAP_TRANSITION.FADE_MS, 0, 0, 0);
+      const onFadeInComplete = pending.options?.onFadeInComplete;
+      if (typeof onFadeInComplete === 'function') {
+        cam.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
+          try {
+            onFadeInComplete();
+          } catch (err) {
+            console.error('[GameScene] map switch callback failed', err);
+          }
+        });
+      }
+    }
+  }
+
+  _cancelFishingForTransition() {
+    try {
+      if (
+        this.fishingSystem &&
+        this.player &&
+        this.fishingSystem.isActive()
+      ) {
+        this.fishingSystem.cancelFishing(false, this.player);
+      }
+    } catch (err) {
+      console.error('[GameScene] cancel fishing on map switch failed', err);
+    }
+  }
+
+  _closePanelsForTransition() {
+    try {
+      if (this.isShopOpen) {
+        eventBus.emit(EVENTS.CLOSE_SHOP);
+      }
+      eventBus.emit(EVENTS.CLOSE_UI_PANELS);
+    } catch (err) {
+      console.error('[GameScene] close panels on map switch failed', err);
+    }
+  }
+
+  _resetInputForTransition() {
+    if (this.inputSystem) {
+      this.inputSystem.enabled = false;
+      this.inputSystem.setTouchVector(0, 0);
+    }
+    if (this.player) {
+      try {
+        if (this.player.body) this.player.body.setVelocity(0, 0);
+        this.player.setLockedStateAnimation('idle');
+      } catch (err) {
+        console.error('[GameScene] lock player on map switch failed', err);
+      }
+    }
+  }
+
+  /**
+   * Auto gate entry. Returns true when a switch was started this frame.
+   */
+  _tryUseGate() {
+    if (
+      !this.worldBuilder ||
+      !this.player ||
+      this.isSleeping ||
+      this.isShopOpen ||
+      this.isTransitioning
+    ) {
+      return false;
+    }
+    if (this.time.now < this._gateArmedAt) return false;
+
+    const gate = this.worldBuilder.getGateAt(this.player.x, this.player.y);
+    if (!gate) return false;
+    return this._switchMap(gate.targetMapId, gate.entryPoint);
+  }
+
+  _getSavedSpawnTile(mapId) {
+    const positions = this.gameState?.mapPositions;
+    const stored = positions ? positions[mapId] : null;
+    if (
+      stored &&
+      Number.isFinite(stored.tileX) &&
+      Number.isFinite(stored.tileY)
+    ) {
+      return stored;
+    }
+    if (mapId === MAP_IDS.FARM && this.gameState?.player) {
+      return this.gameState.player;
+    }
+    return MAPS[mapId]?.spawn || MAPS[MAP_IDS.FARM].spawn;
+  }
+
+  _getEntrySpawn(mapId, entryPoint) {
+    const def = MAPS[mapId] || MAPS[MAP_IDS.FARM];
+    const tile = def.entryPoints?.[entryPoint] || def.spawn;
+    return {
+      x: tile.tileX * TILE.SIZE + TILE.SIZE / 2,
+      y: tile.tileY * TILE.SIZE + TILE.SIZE / 2,
+    };
+  }
+
+  _updateSavedPositionForCurrentMap() {
+    if (!this.player || !this.player.container || !this.gameState) return;
+    const coords = this.player.getTileCoords();
+    this.gameState.mapId = this.currentMapId;
+    this.gameState.player = { tileX: coords.tx, tileY: coords.ty };
+    if (
+      !this.gameState.mapPositions ||
+      typeof this.gameState.mapPositions !== 'object'
+    ) {
+      this.gameState.mapPositions = {};
+    }
+    this.gameState.mapPositions[this.currentMapId] = {
+      tileX: coords.tx,
+      tileY: coords.ty,
+    };
+  }
+
+  _applyCameraFollow() {
+    const cam = this.cameras?.main;
+    if (!cam || !this.player || !this.player.container) return;
+    cam.setRoundPixels(true);
+    cam.startFollow(this.player.container, true, CAMERA.LERP, CAMERA.LERP);
+    cam.setDeadzone(CAMERA.DEADZONE_W, CAMERA.DEADZONE_H);
+  }
+
+  _createDebugStats() {
+    if (!this.debugEnabled) return;
+    this._lastDebugStatsAt = 0;
+    this.debugStatsText = this.add
+      .text(8, 64, '', {
+        fontFamily: GAME.FONT_FAMILY,
+        fontSize: `${UI.FONT.DEBUG_OVERLAY}px`,
+        color: UI.TEXT_COLOR,
+        backgroundColor: 'rgba(18,11,7,0.82)',
+        padding: { x: 4, y: 3 },
+        resolution: 2,
+      })
+      .setScrollFactor(0)
+      .setDepth(DEPTH.DEBUG)
+      .setOrigin(0, 0);
+    this._updateDebugStats(true);
+  }
+
+  _updateDebugStats(force = false) {
+    if (!this.debugEnabled || !this.debugStatsText) return;
+    const now = this.time.now;
+    if (!force && now - this._lastDebugStatsAt < 500) return;
+    this._lastDebugStatsAt = now;
+
+    const displayCount = this.children?.list?.length || 0;
+    const staticBodies = this.physics?.world?.staticBodies?.size || 0;
+    const tweenCount = this.tweens?.getTweens?.()?.length || 0;
+    const timerCount =
+      (this.time?._active?.length || 0) + (this.time?._pending?.length || 0);
+
+    this.debugStatsText.setText(
+      `map ${this.currentMapId}\ndisplay ${displayCount} | static ${staticBodies}\ntween ${tweenCount} | timer ${timerCount}`
+    );
   }
 
   _bindEvents() {
     this._onAction = () => this._handlePrimaryAction();
     this._onCycleTool = () => this._cycleTool(1);
     this._onSelectTool = (idx) => {
-      if (this.isSleeping || this.isShopOpen) return;
+      if (this.isSleeping || this.isShopOpen || this.isTransitioning) return;
       if (idx >= 0 && idx < TOOLS.length) {
         this.toolIndex = idx;
         this._emitToolChanged();
@@ -712,9 +1090,7 @@ export class GameScene extends Phaser.Scene {
   _saveCurrentState() {
     if (!this.gameState || !this.player || !this.player.container) return;
     try {
-      const coords = this.player.getTileCoords();
-      this.gameState.player.tileX = coords.tx;
-      this.gameState.player.tileY = coords.ty;
+      this._updateSavedPositionForCurrentMap();
       SaveSystem.save(this.gameState);
     } catch (err) {
       console.error('[GameScene] save failed', err);
@@ -732,7 +1108,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   _cycleTool(step = 1) {
-    if (this.isSleeping || this.isShopOpen) return;
+    if (this.isSleeping || this.isShopOpen || this.isTransitioning) return;
     this.toolIndex = (this.toolIndex + step + TOOLS.length) % TOOLS.length;
     this._emitToolChanged();
   }
@@ -783,7 +1159,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   _handlePrimaryAction() {
-    if (!this.player || this.isSleeping || this.isShopOpen) {
+    if (
+      !this.player ||
+      this.isSleeping ||
+      this.isShopOpen ||
+      this.isTransitioning
+    ) {
       return;
     }
 
@@ -885,7 +1266,7 @@ export class GameScene extends Phaser.Scene {
    * running the exact same daily crop growth and autosave logic as sleeping without camera fade.
    */
   _debugAdvanceDayImmediate() {
-    if (!this.debugEnabled || this.isSleeping) return;
+    if (!this.debugEnabled || this.isSleeping || this.isTransitioning) return;
     if (this.fishingSystem && this.fishingSystem.isActive()) {
       this.fishingSystem.cancelFishing(false, this.player);
     }
@@ -923,7 +1304,18 @@ export class GameScene extends Phaser.Scene {
    * - Fade camera back in with morning jingle
    */
   _startSleepSequence(autoSleep = false) {
-    if (this.isSleeping) return;
+    if (this.isSleeping || this.isTransitioning) return;
+
+    // Manual sleep is farm-only. At midnight from the village: move to the farm
+    // first, then continue the normal auto-sleep (teleport to the house door).
+    if (this.currentMapId !== MAP_IDS.FARM) {
+      if (!autoSleep) return;
+      this._switchMap(MAP_IDS.FARM, 'houseDoor', {
+        onFadeInComplete: () => this._startSleepSequence(true),
+      });
+      return;
+    }
+
     if (this.isShopOpen) {
       eventBus.emit(EVENTS.CLOSE_SHOP);
     }
@@ -1006,6 +1398,10 @@ export class GameScene extends Phaser.Scene {
 
   update(_, delta) {
     if (!this.player || !this.inputSystem) return;
+    if (this.isTransitioning) {
+      this._updateDebugStats();
+      return;
+    }
 
     if (this.timeSystem && !this.isSleeping) {
       this.timeSystem.update(delta);
@@ -1015,6 +1411,10 @@ export class GameScene extends Phaser.Scene {
       this.weatherSystem.update();
     }
     this._updateRainVisual(delta);
+    this._updateDebugStats();
+
+    // Automatic gate entry (walking into the gate zone is enough, no AKSI)
+    if (this._tryUseGate()) return;
 
     const moveVec = this.inputSystem.getMovementVector();
     const isFishingActive = this.fishingSystem
@@ -1035,9 +1435,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Update target tile cursor in front of (or under) player
+    // Update target tile cursor in front of (or under) player (farm only)
     const target = this._getEffectiveTargetTile();
-    this._drawTargetCursor(target.tx, target.ty);
+    if (this.farmingSystem && this.targetCursor) {
+      this._drawTargetCursor(target.tx, target.ty);
+    }
 
     // Check nearby landmark, fishing state, or farm plot for interaction hint
     const front = this.player.getFrontTile();

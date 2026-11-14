@@ -49,6 +49,7 @@ export const EVENTS = Object.freeze({
   // UI & Notifications & Audio
   TOAST_MESSAGE: 'ui:toast',
   INTERACTION_HINT: 'ui:interaction_hint',
+  CLOSE_UI_PANELS: 'ui:close_panels',
   PLAY_SFX: 'audio:play_sfx',
   AUDIO_MUTED_CHANGED: 'audio:muted_changed',
   AUDIO_SETTINGS_CHANGED: 'audio:settings_changed',

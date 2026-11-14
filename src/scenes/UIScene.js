@@ -1355,6 +1355,15 @@ export class UIScene extends Phaser.Scene {
         this.hintText.setVisible(true);
       }
     };
+    this._onCloseUiPanels = () => {
+      this.storageOpen = false;
+      if (this.storageDrawer) {
+        this.storageDrawer.setVisible(false);
+      }
+      if (this.shopModal && this.shopModal.isOpen) {
+        this.shopModal.close(false);
+      }
+    };
     this._onResize = (gameSize) => {
       const w = gameSize?.width || this.scale?.width || GAME.WIDTH;
       const h = gameSize?.height || this.scale?.height || GAME.HEIGHT;
@@ -1395,6 +1404,7 @@ export class UIScene extends Phaser.Scene {
     eventBus.on(EVENTS.FISHING_STATE_CHANGED, this._onFishingState);
     eventBus.on(EVENTS.OPEN_SHOP, this._onOpenShop);
     eventBus.on(EVENTS.CLOSE_SHOP, this._onCloseShop);
+    eventBus.on(EVENTS.CLOSE_UI_PANELS, this._onCloseUiPanels);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -1412,6 +1422,7 @@ export class UIScene extends Phaser.Scene {
       eventBus.off(EVENTS.FISHING_STATE_CHANGED, this._onFishingState);
       eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
+      eventBus.off(EVENTS.CLOSE_UI_PANELS, this._onCloseUiPanels);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       if (this.input) {
         this.input.off('pointermove', this._onDrawerPointerMove);
