@@ -331,9 +331,15 @@ export const FISHING = Object.freeze({
 });
 
 export const INVENTORY = Object.freeze({
-  MAX_SLOTS: 12,
+  MAX_SLOTS: 24,
   DEFAULT_MAX_STACK: 20,
   COMPACT_COLS: 6,
+  COMPACT_ROWS: 4,
+  // Collapsible backpack drawer (cell size in base UI units, x uiScale)
+  SLOT_CELL_SIZE: 26,
+  // Physical minimum touch target already used by TouchControls small buttons
+  // ((BUTTON_SMALL_RADIUS 18 + BUTTON_HIT_PADDING 6) * 2 = 48px at uiScale 1)
+  SLOT_MIN_TOUCH_PX: 48,
 });
 
 export const ECONOMY = Object.freeze({

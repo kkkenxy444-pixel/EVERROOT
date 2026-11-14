@@ -14,7 +14,7 @@ import { eventBus, EVENTS } from './EventBus.js';
 /**
  * Slot-based Inventory & Economy System for Milestone 3:
  * - Replaces Milestone 2's flat dictionary storage with a fixed-slot backpack
- *   (`INVENTORY.MAX_SLOTS = 12`, per-slot stack limit `item.stackMax = 20`)
+ *   (`INVENTORY.MAX_SLOTS = 24`, per-slot stack limit `item.stackMax = 20`)
  * - Keeps `gameState.inventorySlots` (slot array) and `gameState.inventory` (summary counts)
  *   synchronized at all times
  * - Restricts seed selection (`BIBIT` / `R`) to owned seeds (`stock > 0`), showing a short toast

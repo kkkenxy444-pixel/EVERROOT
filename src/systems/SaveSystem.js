@@ -14,6 +14,8 @@ import { InventorySystem } from './InventorySystem.js';
  * - Autosaves when the player sleeps in the house or completes shop transactions
  * - Supports seamless migration from Milestone 2 (`version: 1`) flat `inventory` maps
  *   into Milestone 3 (`version: 2`) stacked `inventorySlots`
+ * - Slot-count changes (12 -> 24 slots) need no version bump: `InventorySystem.sanitizeSlots`
+ *   rebuilds the array to `INVENTORY.MAX_SLOTS`, keeping every stored entry and padding with empty slots
  * - Safely handles corrupted JSON or invalid fields without crashing
  */
 class SaveSystemClass {

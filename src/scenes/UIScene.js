@@ -3,6 +3,7 @@ import { ASSET_KEYS, cropStageKey } from '../data/assetKeys.js';
 import {
   GAME,
   getUiScale,
+  INPUT,
   INVENTORY,
   isDebugModeEnabled,
   SCENE_KEYS,
@@ -19,7 +20,7 @@ import { TouchControls } from '../ui/TouchControls.js';
  * UIScene: Parallel overlay scene rendered at native physical screen resolution
  * using integer `uiScale = getUiScale(height)`:
  * - Single compact top row: Day/Time/Phase, Coins, active seed badge, and a collapsible
- *   12-slot compact inventory toggle button (plus compact Audio & Menu buttons at top-right)
+ *   24-slot (6x4) compact inventory drawer toggle (plus Audio & Menu buttons at top-right)
  * - Single-line auto-hiding Toast at top-center
  * - Bottom-center toolbar (Hoe, Watering Can, Seeds with active seed icon/count, Fishing Rod)
  * - Custom on-screen TouchControls (bottom-left joystick + bottom-right AKSI / ALAT / BIBIT)
@@ -247,26 +248,52 @@ export class UIScene extends Phaser.Scene {
       }
     });
 
-    // Collapsible 12-slot compact inventory drawer (6 columns x 2 rows)
+    // Collapsible inventory drawer (6 columns x 4 rows, vertically scrollable when space is tight)
     this.storageDrawer = this.add
       .container(0, barH + 4 * s)
       .setVisible(this.storageOpen);
 
-    const cols = INVENTORY.COMPACT_COLS || 6;
-    const rows = Math.ceil(INVENTORY.MAX_SLOTS / cols);
-    const cellS = 26 * s;
-    const cellGap = 3.5 * s;
-    const padX = 6 * s;
-    const padY = 6 * s;
-    const drawerW = padX * 2 + cols * cellS + (cols - 1) * cellGap;
-    const drawerH = padY * 2 + rows * cellS + (rows - 1) * cellGap;
+    const metrics = this._computeDrawerMetrics();
+    const cols = metrics.cols;
+    const cellS = metrics.cellS;
+    const cellGap = metrics.cellGap;
+    const padX = metrics.padX;
+    const padY = metrics.padY;
 
-    const drawerBg = this.add.graphics();
-    drawerBg.fillStyle(UI.PANEL_BG, 0.96);
-    drawerBg.fillRoundedRect(0, 0, drawerW, drawerH, 4 * s);
-    drawerBg.lineStyle(1.4 * s, UI.PANEL_BORDER, 0.95);
-    drawerBg.strokeRoundedRect(0, 0, drawerW, drawerH, 4 * s);
-    this.storageDrawer.add(drawerBg);
+    this._drawerScrollY = 0;
+    this._drawerDrag = null;
+
+    // Panel background + scrollbar stay fixed; only the slot grid scrolls.
+    this.drawerPanel = this.add.graphics();
+    this.drawerScrollbar = this.add.graphics();
+    this.drawerContent = this.add.container(0, -this._drawerScrollY);
+    this.drawerDragZone = this.add
+      .zone(0, 0, metrics.width, metrics.height)
+      .setOrigin(0, 0)
+      .setInteractive();
+    this.drawerDragZone.on('pointerdown', (pointer, lx, ly, event) => {
+      if (event && event.stopPropagation) event.stopPropagation();
+      this._drawerDrag = {
+        pointerId: pointer.id,
+        startY: pointer.y,
+        startScroll: this._drawerScrollY || 0,
+      };
+    });
+
+    if (this.drawerMaskGfx) {
+      this.drawerMaskGfx.destroy();
+      this.drawerMaskGfx = null;
+    }
+    this.drawerMaskGfx = this.make.graphics({ x: 0, y: 0, add: false });
+    this.drawerMask = this.drawerMaskGfx.createGeometryMask();
+    this.drawerContent.setMask(this.drawerMask);
+
+    this.storageDrawer.add([
+      this.drawerPanel,
+      this.drawerContent,
+      this.drawerScrollbar,
+      this.drawerDragZone,
+    ]);
 
     this.inventorySlotCells = [];
     for (let i = 0; i < INVENTORY.MAX_SLOTS; i += 1) {
@@ -318,9 +345,11 @@ export class UIScene extends Phaser.Scene {
         .setOrigin(1, 1)
         .setVisible(false);
 
-      this.storageDrawer.add([cellBg, icon, badge, countText]);
+      this.drawerContent.add([cellBg, icon, badge, countText]);
       this.inventorySlotCells.push({ cellBg, icon, badge, countText });
     }
+
+    this._layoutStorageDrawer();
 
     this.topLeftGroup.add([
       bar,
@@ -827,6 +856,158 @@ export class UIScene extends Phaser.Scene {
   }
 
   /**
+   * Computes the drawer geometry in screen space: fixed 6 columns, slots never smaller than
+   * `INVENTORY.SLOT_MIN_TOUCH_PX`, height capped above the joystick so the playfield stays usable.
+   */
+  _computeDrawerMetrics() {
+    const s = this.uiScale;
+    const safeX = UI.SAFE_MARGIN_X * s;
+    const safeY = UI.SAFE_MARGIN_Y * s;
+    const barH = 24 * s;
+    // In narrow/portrait mode the Audio & Menu buttons move to a second row; start below them.
+    const isNarrowTop = this.viewWidth < 500 * s;
+    const localY = barH + 4 * s + (isNarrowTop ? 25 * s : 0);
+
+    const cols = INVENTORY.COMPACT_COLS || 6;
+    const rows =
+      INVENTORY.COMPACT_ROWS || Math.ceil(INVENTORY.MAX_SLOTS / cols);
+    const cellGap = 3.5 * s;
+    const padX = 6 * s;
+    const padY = 6 * s;
+
+    const fitWidth = this.viewWidth - safeX * 2;
+    const fitCell = Math.floor(
+      (fitWidth - padX * 2 - (cols - 1) * cellGap) / cols
+    );
+    const baseCell = Math.round((INVENTORY.SLOT_CELL_SIZE || 26) * s);
+    const cellS = Math.max(
+      INVENTORY.SLOT_MIN_TOUCH_PX || 48,
+      Math.min(baseCell, fitCell)
+    );
+
+    const width = padX * 2 + cols * cellS + (cols - 1) * cellGap;
+    const contentHeight = padY * 2 + rows * cellS + (rows - 1) * cellGap;
+
+    // Never cover the bottom-left joystick.
+    const joystickTop =
+      this.viewHeight -
+      safeY -
+      (INPUT.JOYSTICK_MARGIN_BOTTOM + INPUT.JOYSTICK_RADIUS) * s;
+    const maxHeight = Math.max(
+      cellS + padY * 2,
+      joystickTop - (safeY + localY) - 6 * s
+    );
+    const height = Math.min(contentHeight, maxHeight);
+
+    return {
+      localY,
+      width,
+      height,
+      contentHeight,
+      cellS,
+      cellGap,
+      padX,
+      padY,
+      cols,
+      rows,
+    };
+  }
+
+  /**
+   * True when the open inventory drawer covers the pointer, so touch input there scrolls
+   * the drawer instead of spawning/driving the joystick underneath.
+   */
+  isPointerOverStorageDrawer(pointer) {
+    if (!this.storageOpen || !this.drawerMetrics || !pointer) return false;
+    const m = this.drawerMetrics;
+    const s = this.uiScale;
+    const x = UI.SAFE_MARGIN_X * s;
+    const y = UI.SAFE_MARGIN_Y * s + m.localY;
+    return (
+      pointer.x >= x &&
+      pointer.x <= x + m.width &&
+      pointer.y >= y &&
+      pointer.y <= y + m.height
+    );
+  }
+
+  /**
+   * Applies drawer geometry: positions it under the top bar, sizes the clip mask, and refreshes scroll.
+   */
+  _layoutStorageDrawer() {
+    if (!this.storageDrawer) return;
+    const s = this.uiScale;
+    const m = this._computeDrawerMetrics();
+    this.drawerMetrics = m;
+
+    this.storageDrawer.setPosition(0, m.localY);
+
+    this.drawerPanel.clear();
+    this.drawerPanel.fillStyle(UI.PANEL_BG, 0.96);
+    this.drawerPanel.fillRoundedRect(0, 0, m.width, m.height, 4 * s);
+    this.drawerPanel.lineStyle(1.4 * s, UI.PANEL_BORDER, 0.95);
+    this.drawerPanel.strokeRoundedRect(0, 0, m.width, m.height, 4 * s);
+
+    this.drawerDragZone.setSize(m.width, m.height);
+    if (this.drawerDragZone.input?.hitArea?.setTo) {
+      this.drawerDragZone.input.hitArea.setTo(0, 0, m.width, m.height);
+    }
+
+    if (this.drawerMaskGfx) {
+      const maskX = UI.SAFE_MARGIN_X * s;
+      const maskY = UI.SAFE_MARGIN_Y * s + m.localY;
+      this.drawerMaskGfx.clear();
+      this.drawerMaskGfx.fillStyle(0xffffff, 1);
+      this.drawerMaskGfx.fillRect(maskX, maskY, m.width, m.height);
+    }
+
+    this._setDrawerScroll(this._drawerScrollY || 0);
+  }
+
+  /**
+   * Clamps vertical scroll offset and re-renders the drawer scrollbar thumb.
+   */
+  _setDrawerScroll(value) {
+    const m = this.drawerMetrics;
+    if (!m) return;
+    const maxScroll = Math.max(0, m.contentHeight - m.height);
+    this._drawerScrollY = Phaser.Math.Clamp(
+      Math.round(Number(value) || 0),
+      0,
+      maxScroll
+    );
+    if (this.drawerContent) {
+      this.drawerContent.setY(-this._drawerScrollY);
+    }
+    this._drawDrawerScrollbar();
+  }
+
+  _drawDrawerScrollbar() {
+    if (!this.drawerScrollbar || !this.drawerMetrics) return;
+    const m = this.drawerMetrics;
+    const s = this.uiScale;
+    const g = this.drawerScrollbar;
+    g.clear();
+
+    const maxScroll = m.contentHeight - m.height;
+    if (maxScroll <= 0) return;
+
+    const trackW = 3.5 * s;
+    const trackX = m.width - trackW - 1.5 * s;
+    const trackY = 3 * s;
+    const trackH = m.height - 6 * s;
+    g.fillStyle(UI.PANEL_INNER, 0.9);
+    g.fillRoundedRect(trackX, trackY, trackW, trackH, trackW / 2);
+
+    const ratio = m.height / m.contentHeight;
+    const thumbH = Math.max(trackW * 2, trackH * ratio);
+    const thumbY =
+      trackY + (trackH - thumbH) * (this._drawerScrollY / maxScroll);
+    g.fillStyle(UI.PANEL_BORDER, 0.95);
+    g.fillRoundedRect(trackX, thumbY, trackW, thumbH, trackW / 2);
+  }
+
+  /**
    * Repositions top HUD, bottom toolbar, and prompts whenever the viewport resizes/rotates.
    * Rebuilds HUD if the integer `uiScale` changes, and prevents top/bottom bar overlap in portrait mode.
    */
@@ -850,6 +1031,7 @@ export class UIScene extends Phaser.Scene {
     if (this.topLeftGroup) {
       this.topLeftGroup.setPosition(safeX, safeY);
     }
+    this._layoutStorageDrawer();
 
     // In narrow/portrait orientation, stack top-right utility buttons on a second row so they never overlap top-left bar
     const isNarrowTop = w < 500 * s;
@@ -1139,6 +1321,26 @@ export class UIScene extends Phaser.Scene {
       this._relayout(w, h);
     };
 
+    // Vertical scroll for the inventory drawer: touch/mouse drag inside it, plus wheel.
+    this._onDrawerPointerMove = (pointer) => {
+      const drag = this._drawerDrag;
+      if (!drag || !pointer || pointer.id !== drag.pointerId) return;
+      this._setDrawerScroll(drag.startScroll - (pointer.y - drag.startY));
+    };
+    this._onDrawerPointerUp = (pointer) => {
+      if (this._drawerDrag && pointer.id === this._drawerDrag.pointerId) {
+        this._drawerDrag = null;
+      }
+    };
+    this._onDrawerWheel = (pointer, gameObjects, deltaX, deltaY) => {
+      if (!this.isPointerOverStorageDrawer(pointer)) return;
+      this._setDrawerScroll((this._drawerScrollY || 0) + deltaY * 0.5);
+    };
+    this.input.on('pointermove', this._onDrawerPointerMove);
+    this.input.on('pointerup', this._onDrawerPointerUp);
+    this.input.on('pointerupoutside', this._onDrawerPointerUp);
+    this.input.on('wheel', this._onDrawerWheel);
+
     eventBus.on(EVENTS.TOOL_CHANGED, this._onToolChanged);
     eventBus.on(EVENTS.INTERACTION_HINT, this._onHint);
     eventBus.on(EVENTS.TOAST_MESSAGE, this._onToast);
@@ -1167,6 +1369,18 @@ export class UIScene extends Phaser.Scene {
       eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
+      if (this.input) {
+        this.input.off('pointermove', this._onDrawerPointerMove);
+        this.input.off('pointerup', this._onDrawerPointerUp);
+        this.input.off('pointerupoutside', this._onDrawerPointerUp);
+        this.input.off('wheel', this._onDrawerWheel);
+      }
+      this._drawerDrag = null;
+      if (this.drawerMaskGfx) {
+        this.drawerMaskGfx.destroy();
+        this.drawerMaskGfx = null;
+        this.drawerMask = null;
+      }
       if (this._debugAudioTimer) {
         this._debugAudioTimer.remove(false);
         this._debugAudioTimer = null;

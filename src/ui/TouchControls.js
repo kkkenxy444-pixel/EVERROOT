@@ -277,6 +277,9 @@ export class TouchControls {
       if (pointer.wasTouch && !this.container.visible) {
         this.setVisible(true);
       }
+      // Let the open inventory drawer consume touches over its own area (scroll instead of move)
+      if (this.scene?.isPointerOverStorageDrawer?.(pointer)) return;
+
       const w = this.viewWidth;
       const h = this.viewHeight;
       const s = this.uiScale || 1;
