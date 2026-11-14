@@ -34,7 +34,7 @@ npm run preview -- --host  # port 4173
 - **entities/**
   - `Player.js` — container 3 layer (`base` + `spikeyhair` + `tools`), aksi terkunci, debu.
   - `Crop.js` — visual petak + sprite tanaman stage 00–05.
-  - `AmbientAnimal.js` — hewan dekoratif: idle/walk, flip, anti-numpuk, suara jarak.
+  - `AmbientAnimal.js` — hewan dekoratif: bebas keliling map (kebun/kolam/dermaga terlarang), flip, anti-numpuk, jeda dekat pemain, ikon hasil ternak.
 - **systems/**
   - `EventBus.js` — event terpusat antar-system/scene.
   - `FontLoader.js` — font Adapa + resolusi teks.
@@ -47,6 +47,8 @@ npm run preview -- --host  # port 4173
   - `FishingSystem.js` — state machine idle→casting→waiting→bite→reeling→caught.
   - `TimeSystem.js` — jam 06:00–24:00, fase, tint per jam, hari baru.
   - `WeatherSystem.js` — hujan deterministik dari nomor hari (tanpa data save), max 2 hari beruntun, 1 periode 3–6 jam.
+  - `AnimalTerrain.js` — satu `Uint8Array` tile terlarang untuk semua hewan (kebun+margin, air, dermaga, tile terblok), spawn tersebar.
+  - `LivestockSystem.js` — telur/susu berbasis hari + `lastCollectedDay`, ambil aman saat tas penuh.
 - **ui/**
   - `TouchControls.js` — joystick kiri + tombol AKSI/ALAT/BIBIT kanan.
   - `ShopModal.js` — modal jual (`sell`) dan beli (`buy`), scroll, keyboard/touch.
@@ -68,7 +70,8 @@ npm run preview -- --host  # port 4173
 | Ikan: peluang, harga, timing | `gameConfig.js` → `FISHING` |
 | Tas, stack, ekonomi awal | `gameConfig.js` → `INVENTORY`, `ECONOMY` |
 | Cuaca hujan (peluang, jam, durasi, visual, suara) | `gameConfig.js` → `WEATHER`; ambience di `audioConfig.js` → `PHASE_AMBIENCE.hujan` |
-| Hewan ambient | `gameConfig.js` → `AMBIENT_ANIMALS`; perilaku di `AmbientAnimal.js` |
+| Hewan ambient (jelajah, jeda pemain, spawn) | `gameConfig.js` → `AMBIENT_ANIMALS`; perilaku di `AmbientAnimal.js`, tile di `AnimalTerrain.js` |
+| Ternak (harga telur/susu, interval, radius ambil) | `gameConfig.js` → `LIVESTOCK`; item di `items.js` |
 | Teks/UI/tombol | `gameConfig.js` → `UI`, `UI.FONT`, `INPUT` |
 | Audio & volume | `audioConfig.js`; setelan runtime di `AudioManager.js` |
 | Aset & animasi | `assetKeys.js`; index tile di `tileIndex.js` |
@@ -81,7 +84,9 @@ npm run preview -- --host  # port 4173
 - **Freeze Menu/scene `[SELESAI-BUILD]`** — perbaikan sudah di-build; tes Menu dari gameplay termasuk saat mancing masuk konfirmasi V1.
 - **Inventory 24 slot `[SELESAI-BUILD]`** — 24 slot, laci 6 kolom x 4 baris, collapsible (hanya terbuka saat diklik), scroll vertikal bila layar pendek, area slot >=48px, hotbar tidak berubah. **Belum dites di HP**; verifikasi lewat build + simulasi Node (save Hari 8 12 slot, isi 24, simpan/muat, jual).
 - **Paket 3 — Hujan `[SELESAI-BUILD]`** — hujan deterministik (~19–20% hari sejak Hari 3, max 2 hari beruntun), satu periode 07:00–15:00 selama 3–6 jam, petak tertanam otomatis basah + floating text sekali per periode, garis hujan 120 drop pooled + overlay mendung ≤0.12, ambience `rain.wav` volume 0.08 (RMS −21.2 dB) menggantikan jangkrik, label "Hujan" di bar waktu. **Belum dites di HP**; verifikasi build + simulasi Node.
-- Build produksi terakhir: **lolos** (35 module, Vite 6.4.5). Paket 2 & 3 memakai save v2 tanpa field tambahan.
+- **Hewan bebas keliling `[SELESAI-BUILD]`** — 8 hewan spawn tersebar di seluruh map, target acak 6–10 tile dengan cek garis lurus, kebun+margin 1 tile/air/dermaga/tile terblok ditolak lewat satu `Uint8Array`, bebek tetap di air kolam, berhenti saat pemain <2.5 tile lalu lanjut. **Belum dites di HP**; simulasi 20.000 frame lolos.
+- **Paket 2b — Ternak `[SELESAI-BUILD]`** — 2 ayam bertelur tiap hari (12G), 1 sapi menghasilkan susu tiap 2 hari (30G), ikon kecil melayang, `lastCollectedDay` opsional per id stabil (`chicken_1/2`, `cow_1`), tas penuh menolak tanpa kehilangan hasil, prioritas AKSI lama tetap. **Belum dites di HP**; verifikasi build + simulasi Node.
+- Build produksi terakhir: **lolos** (37 module, Vite 6.4.5). Paket 2b menambah field opsional `livestock` yang disanitasi; save lama tetap termuat.
 
 ## 6. Pelajaran penting / gotchas
 - **Freeze Phaser 3.90**: saat `stop(GAME)`, `DisplayList#shutdown` menghancurkan sprite player lebih dulu; `FishingSystem.destroy()` → `Player.unlockAction()` → `sprite.play()` melempar error dan transisi scene tidak jalan. Jangan sentuh GameObject di handler SHUTDOWN; gunakan guard + `try/catch`.
@@ -92,6 +97,8 @@ npm run preview -- --host  # port 4173
 - **Save lama**: bibit yang terkunci tetap ada di tas, tetapi tidak bisa dipilih/ditanam sampai hari bukanya.
 - **Slot tas 24** (2026-11-14): save v2 lama 12 slot tetap termuat utuh; `sanitizeSlots` mengisi sisa slot ke-24 tanpa memotong item.
 - **Aset branding** `game_icon_primary.png` / `game_icon_alt.png` sebenarnya JPEG berekstensi `.png`; browser tetap memuat.
+- **Hewan ambient** tidak memakai collider fisik: larangan tile dicek lewat `AnimalTerrain` (satu grid, tanpa string di `update()`). Kebun memakai margin 1 tile; dermaga terlarang untuk hewan darat.
+- **Save ternak**: `livestock` opsional; save lama tanpa field itu memuat semua hewan siap. Jangan bump versi save; sanitasi entri tidak valid di `SaveSystem.load()`.
 
 ## 7. Masalah terbuka
 1. **Suara hewan belum lengkap**: belum ada kokok ayam jantan, domba, babi, bebek, burung.
@@ -108,11 +115,10 @@ npm run preview -- --host  # port 4173
 - Jangan ubah aset asli; jangan sebar bundle aset publik.
 
 ## 9. Rencana berikutnya
-1. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` tersedia).
-2. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
-3. V2: combat/musuh, cooking, quest/NPC, interior.
-4. Inventory: Kantung Bibit terpisah bila 24 slot masih kurang.
-5. Cuaca lanjutan: badai/petir atau musim hujan bila Paket 3 lolos tes HP.
+1. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
+2. V2: combat/musuh, cooking, quest/NPC, interior.
+3. Inventory: Kantung Bibit terpisah bila 24 slot masih kurang.
+4. Cuaca lanjutan: badai/petir atau musim hujan bila Paket 3 lolos tes HP.
 
 ## 10. Log sesi
 | Tanggal | Commit | Milestone |
@@ -130,3 +136,5 @@ npm run preview -- --host  # port 4173
 | 2026-11-14 | `85cad61` | Inventory 24 slot: laci 6x4 scroll + migrasi save 12→24 |
 | 2026-11-14 | `247cdf3` | Tint sore/senja: keyframe 16:00–20:30 diperkuat |
 | 2026-11-14 | `8ff7429` | Paket 3: hujan (WeatherSystem, auto-siram, visual, ambience) |
+| 2026-11-14 | `4fb6e7e` | Hewan ambient bebas keliling (AnimalTerrain) kecuali kebun/kolam |
+| 2026-11-14 | `eceb9a8` | Paket 2b: ternak telur & susu (LivestockSystem, save opsional) |
