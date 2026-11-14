@@ -398,7 +398,6 @@ export class GameScene extends Phaser.Scene {
 
     const cam = this.cameras?.main;
     if (cam) {
-      cam.fadeIn(MAP_TRANSITION.FADE_MS, 0, 0, 0);
       const onFadeInComplete = pending.options?.onFadeInComplete;
       if (typeof onFadeInComplete === 'function') {
         cam.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
@@ -409,6 +408,7 @@ export class GameScene extends Phaser.Scene {
           }
         });
       }
+      cam.fadeIn(MAP_TRANSITION.FADE_MS, 0, 0, 0);
     }
   }
 
