@@ -42,7 +42,7 @@ npm run preview -- --host  # port 4173
   - `SaveSystem.js` — simpan versi 2 + migrasi v1 + fallback aman.
   - `InputSystem.js` — keyboard + vektor joystick sentuh.
   - `WorldBuilder.js` — map outdoor 4 layer, tilemap, collider, label bangunan.
-  - `InventorySystem.js` — 12 slot, stack 20, beli/jual, seed unlock.
+  - `InventorySystem.js` — 24 slot, stack 20, beli/jual, seed unlock.
   - `FarmingSystem.js` — cangkul, tanam, siram, tumbuh saat tidur, panen.
   - `FishingSystem.js` — state machine idle→casting→waiting→bite→reeling→caught.
   - `TimeSystem.js` — jam 06:00–24:00, fase, tint per jam, hari baru.
@@ -54,7 +54,7 @@ npm run preview -- --host  # port 4173
   - `PreloadScene.js` — loading aset, fallback tekstur, animasi global.
   - `MenuScene.js` — judul, Lanjut/Mulai/Hapus Save, bar audio.
   - `GameScene.js` — dunia, kamera, sistem, hewan, tidur, save, tint overlay.
-  - `UIScene.js` — HUD, tas 12 slot, toolbar, toast, dialog, popover audio.
+  - `UIScene.js` — HUD, tas 24 slot (laci 6x4 scroll), toolbar, toast, dialog, popover audio.
 
 ## 4. Tempat menyetel nilai
 | Kebutuhan | Lokasi |
@@ -77,6 +77,7 @@ npm run preview -- --host  # port 4173
 - **Tint siang-malam `[SELESAI-TES-HP]`** — sudah dites pengguna. Hasil: jam **19:00 masih terlalu terang** dan **sore kurang oranye**; perbaikan ditunda.
 - **Paket 2 — 11 tanaman `[SELESAI-BUILD]`** — 7 tanaman baru + unlock bertahap + ShopModal 11 baris. **Belum dites di HP**; verifikasi baru lewat simulasi Node dengan Phaser di-mock.
 - **Freeze Menu/scene `[SELESAI-BUILD]`** — perbaikan sudah di-build; tes Menu dari gameplay termasuk saat mancing masuk konfirmasi V1.
+- **Inventory 24 slot `[SELESAI-BUILD]`** — 24 slot, laci 6 kolom x 4 baris, collapsible (hanya terbuka saat diklik), scroll vertikal bila layar pendek, area slot >=48px, hotbar tidak berubah. **Belum dites di HP**; verifikasi lewat build + simulasi Node (save Hari 8 12 slot, isi 24, simpan/muat, jual).
 - Build produksi terakhir: **lolos** (34 module, Vite 6.4.5). Paket 2 memakai save v2 tanpa field tambahan.
 
 ## 6. Pelajaran penting / gotchas
@@ -86,15 +87,14 @@ npm run preview -- --host  # port 4173
 - **Semua strip hewan menghadap kiri** di frame 0; `facesRight: false` per spesies. Jangan asal flip.
 - **Game baru hanya memberi parsnip + carrot**. Sunflower terkunci Hari 10, pumpkin Hari 14; konfigurasi lama tidak lagi diberikan.
 - **Save lama**: bibit yang terkunci tetap ada di tas, tetapi tidak bisa dipilih/ditanam sampai hari bukanya.
-- **Slot tas 12** tidak cukup untuk 25 jenis item; lihat masalah terbuka.
+- **Slot tas 24** (2026-11-14): save v2 lama 12 slot tetap termuat utuh; `sanitizeSlots` mengisi sisa slot ke-24 tanpa memotong item.
 - **Aset branding** `game_icon_primary.png` / `game_icon_alt.png` sebenarnya JPEG berekstensi `.png`; browser tetap memuat.
 
 ## 7. Masalah terbuka
-1. **Inventory 12 slot vs 25 jenis item** (11 bibit + 11 panen + 3 ikan). Bibit tidak bisa dijual/dibuang, jadi slot bisa penuh. Rencana: 24 slot (laci 6x4). Cadangan: Kantung Bibit terpisah.
-2. **Suara hewan belum lengkap**: belum ada kokok ayam jantan, domba, babi, bebek, burung.
-3. **Tint sore**: 19:00 terlalu terang, sore kurang oranye.
-4. **Paket 2 belum dites HP**: 11 tanaman, scroll/ keterbacaan ShopModal 11 baris, dan unlock bertahap.
-5. **Portrait/multitouch** belum dites penuh di HP.
+1. **Suara hewan belum lengkap**: belum ada kokok ayam jantan, domba, babi, bebek, burung.
+2. **Tint sore**: 19:00 terlalu terang, sore kurang oranye.
+3. **Paket 2 belum dites HP**: 11 tanaman, scroll/ keterbacaan ShopModal 11 baris, dan unlock bertahap.
+4. **Portrait/multitouch** belum dites penuh di HP.
 
 ## 8. Konvensi kerja
 - Wajib baca `SKILL.md` relevan di `.agents/skills/` sebelum tugas (phaser, phaser-2d-game, game-development, game-ui-frontend, systematic-debugging, verification-before-completion).
@@ -106,11 +106,11 @@ npm run preview -- --host  # port 4173
 - Jangan ubah aset asli; jangan sebar bundle aset publik.
 
 ## 9. Rencana berikutnya
-1. Inventory 24 slot (laci 6x4) atau Kantung Bibit terpisah.
-2. Paket 3: cuaca/hujan.
-3. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` tersedia).
-4. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
-5. V2: combat/musuh, cooking, quest/NPC, interior.
+1. Paket 3: cuaca/hujan.
+2. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` tersedia).
+3. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
+4. V2: combat/musuh, cooking, quest/NPC, interior.
+5. Inventory: Kantung Bibit terpisah bila 24 slot masih kurang.
 
 ## 10. Log sesi
 | Tanggal | Commit | Milestone |
@@ -125,3 +125,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-07 | `1363f5b` | Perbaikan gerak hewan, bebek di kolam, sebaran |
 | 2026-11-08 | `0476ee3` | Paket 2: 7 tanaman baru + unlock bibit bertahap |
 | 2026-11-08 | `551625e` | Update memory tint/Paket 1/Paket 2 |
+| 2026-11-14 | `85cad61` | Inventory 24 slot: laci 6x4 scroll + migrasi save 12→24 |
