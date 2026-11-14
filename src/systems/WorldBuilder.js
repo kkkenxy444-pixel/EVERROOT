@@ -1,5 +1,12 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
-import { DEPTH, MAP_ZONES, TILE, UI, WORLD } from '../data/gameConfig.js';
+import {
+  DEPTH,
+  MAP_IDS,
+  MAPS,
+  MAP_ZONES,
+  TILE,
+  UI,
+} from '../data/gameConfig.js';
 import {
   DIRT_PATH_VARIANTS,
   GRASS_VARIANTS,
@@ -23,36 +30,59 @@ function createSeededRng(seed) {
 }
 
 /**
- * Builds the outdoor 16px map in `GameScene`:
- * - Multi-layer Phaser Tilemap from `spr_tileset_sunnysideworld_16px.png`
- *   (ground grass, dirt paths + grass fringes, farm plot border, lake water + shore banks + wooden pier)
- * - Cottage house from `buildings_v001.png` with animated chimney smoke (sleep/save point)
- * - Shipping box (`crate_base` + `crate_top`) and Seed Stall (`buildings_v001.png`) for selling & buying
- * - Animated trees (`tree_round`, `tree_pine`), mushrooms, coracle boat, and windmill landmark
- * - Arcade Physics static collider group for water, trees, buildings, fences, and map perimeter
+ * Builds one outdoor 16px map (farm valley or temporary village) in `GameScene`.
+ * Every display object, tilemap layer, label, and physics zone is tracked so
+ * `destroy()` can rebuild a clean map without touching the shared tileset texture.
  */
 export class WorldBuilder {
-  constructor(scene) {
+  constructor(scene, mapId = MAP_IDS.FARM) {
     this.scene = scene;
-    this.colliders = scene.physics.add.staticGroup();
+    this.mapId = MAPS[mapId] ? mapId : MAP_IDS.FARM;
+    this.mapDef = MAPS[this.mapId];
+    this.colliders = null;
     this.waterTiles = new Set();
     this.dirtTiles = new Set();
     this.farmableTiles = new Set();
     this.blockedTiles = new Set();
     this.landmarkLabels = {};
+    this.gateZones = [];
+    this._tracked = [];
+    this._destroyed = false;
   }
 
   build() {
-    const W = WORLD.WIDTH_TILES;
-    const H = WORLD.HEIGHT_TILES;
-    const rng = createSeededRng(WORLD.SEED);
+    this.colliders = this.scene.physics.add.staticGroup();
+    this._track(this.colliders);
 
+    if (this.mapId === MAP_IDS.VILLAGE) {
+      this._buildVillage();
+    } else {
+      this._buildFarmValley();
+    }
+
+    const def = this.mapDef;
+    return {
+      widthPx: def.widthTiles * TILE.SIZE,
+      heightPx: def.heightTiles * TILE.SIZE,
+      colliders: this.colliders,
+      gateZones: this.gateZones,
+    };
+  }
+
+  _track(obj) {
+    if (obj) this._tracked.push(obj);
+    return obj;
+  }
+
+  _createTilemapLayers(layerDefs) {
+    const def = this.mapDef;
     const map = this.scene.make.tilemap({
       tileWidth: TILE.SIZE,
       tileHeight: TILE.SIZE,
-      width: W,
-      height: H,
+      width: def.widthTiles,
+      height: def.heightTiles,
     });
+    this._track(map);
 
     const tileset = map.addTilesetImage(
       ASSET_KEYS.TILESET_SUNNYSIDE,
@@ -63,18 +93,32 @@ export class WorldBuilder {
       0
     );
 
-    const groundLayer = map
-      .createBlankLayer('ground', tileset, 0, 0)
-      .setDepth(DEPTH.GROUND);
-    const detailLayer = map
-      .createBlankLayer('detail', tileset, 0, 0)
-      .setDepth(DEPTH.GROUND_DETAIL);
-    const waterLayer = map
-      .createBlankLayer('water', tileset, 0, 0)
-      .setDepth(DEPTH.WATER);
-    const shoreLayer = map
-      .createBlankLayer('shore', tileset, 0, 0)
-      .setDepth(DEPTH.SHORE);
+    const layers = {};
+    for (const layerDef of layerDefs) {
+      layers[layerDef.name] = this._track(
+        map
+          .createBlankLayer(layerDef.name, tileset, 0, 0)
+          .setDepth(layerDef.depth)
+      );
+    }
+    return { map, tileset, layers };
+  }
+
+  _buildFarmValley() {
+    const W = this.mapDef.widthTiles;
+    const H = this.mapDef.heightTiles;
+    const rng = createSeededRng(this.mapDef.seed);
+
+    const { layers } = this._createTilemapLayers([
+      { name: 'ground', depth: DEPTH.GROUND },
+      { name: 'detail', depth: DEPTH.GROUND_DETAIL },
+      { name: 'water', depth: DEPTH.WATER },
+      { name: 'shore', depth: DEPTH.SHORE },
+    ]);
+    const groundLayer = layers.ground;
+    const detailLayer = layers.detail;
+    const waterLayer = layers.water;
+    const shoreLayer = layers.shore;
 
     // 1. Fill grass base across the entire map
     for (let ty = 0; ty < H; ty++) {
@@ -109,26 +153,15 @@ export class WorldBuilder {
     paintPathRect(12, 8, 14, 11);
     // Horizontal main road north of farm plot (leading to shipping box, stall, and lake pier)
     paintPathRect(7, 9, 25, 10);
+    // New path branch continuing east from the old road end to the village gate at the right edge
+    const gatePath = this.mapDef.gatePath;
+    paintPathRect(gatePath.x0, gatePath.y0, gatePath.x1, gatePath.y1);
     // Path branch down to the lake pier at (25..26, 11..15)
     paintPathRect(24, 10, 25, 16);
     // West border path around farm plot
     paintPathRect(6, 10, 7, 19);
 
-    // Add grass fringe overlays along dirt path edges where adjacent tile is grass
-    for (let ty = 1; ty < H - 1; ty++) {
-      for (let tx = 1; tx < W - 1; tx++) {
-        if (this.dirtTiles.has(`${tx},${ty}`)) continue;
-        if (this.dirtTiles.has(`${tx},${ty + 1}`)) {
-          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_TOP, tx, ty);
-        } else if (this.dirtTiles.has(`${tx},${ty - 1}`)) {
-          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_BOTTOM, tx, ty);
-        } else if (this.dirtTiles.has(`${tx + 1},${ty}`)) {
-          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_LEFT, tx, ty);
-        } else if (this.dirtTiles.has(`${tx - 1},${ty}`)) {
-          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_RIGHT, tx, ty);
-        }
-      }
-    }
+    this._paintPathFringes(detailLayer);
 
     // 3. Mark the dedicated Farmable Plot area (`MAP_ZONES.FARM_PLOT`) with subtle border & warm soil-ready grass
     const fp = MAP_ZONES.FARM_PLOT;
@@ -208,26 +241,30 @@ export class WorldBuilder {
       [35, 19],
     ];
     for (const [gx, gy] of glintCoords) {
-      const sp = this.scene.add
-        .sprite(
-          gx * TILE.SIZE + 8,
-          gy * TILE.SIZE + 8,
-          ASSET_KEYS.FX_GLINT,
-          0
-        )
-        .setDepth(DEPTH.SHORE + 0.2);
+      const sp = this._track(
+        this.scene.add
+          .sprite(
+            gx * TILE.SIZE + 8,
+            gy * TILE.SIZE + 8,
+            ASSET_KEYS.FX_GLINT,
+            0
+          )
+          .setDepth(DEPTH.SHORE + 0.2)
+      );
       sp.play(`${ASSET_KEYS.FX_GLINT}_anim`);
     }
 
     // Coracle boat prop resting by the northern lake bank
-    this.scene.add
-      .image(
-        (pond.X0 + 2) * TILE.SIZE,
-        (pond.Y0 - 0.3) * TILE.SIZE,
-        ASSET_KEYS.CORACLE_LAND
-      )
-      .setOrigin(0.5, 0.8)
-      .setDepth(DEPTH.Y_SORT_BASE + (pond.Y0 - 0.3) * TILE.SIZE);
+    this._track(
+      this.scene.add
+        .image(
+          (pond.X0 + 2) * TILE.SIZE,
+          (pond.Y0 - 0.3) * TILE.SIZE,
+          ASSET_KEYS.CORACLE_LAND
+        )
+        .setOrigin(0.5, 0.8)
+        .setDepth(DEPTH.Y_SORT_BASE + (pond.Y0 - 0.3) * TILE.SIZE)
+    );
 
     // 5. Place Fences north of the farm plot
     for (let tx = fp.X0; tx <= fp.X1; tx++) {
@@ -252,11 +289,165 @@ export class WorldBuilder {
     // 7. Place Trees, Rocks, Flowers, and Mushrooms around the valley
     this._populateNature(rng, detailLayer);
 
-    return {
-      widthPx: W * TILE.SIZE,
-      heightPx: H * TILE.SIZE,
-      colliders: this.colliders,
-    };
+    // 8. Invisible automatic gate trigger at the opened right-edge bushes
+    this._addGateZones();
+  }
+
+  /**
+   * Temporary village map: plain grass, one short dirt path from the left-edge
+   * return gate, and a bush perimeter with the gate opening kept clear.
+   */
+  _buildVillage() {
+    const W = this.mapDef.widthTiles;
+    const H = this.mapDef.heightTiles;
+    const rng = createSeededRng(this.mapDef.seed);
+
+    const { layers } = this._createTilemapLayers([
+      { name: 'ground', depth: DEPTH.GROUND },
+      { name: 'detail', depth: DEPTH.GROUND_DETAIL },
+    ]);
+    const groundLayer = layers.ground;
+    const detailLayer = layers.detail;
+
+    // Plain grass base
+    for (let ty = 0; ty < H; ty++) {
+      for (let tx = 0; tx < W; tx++) {
+        const r = rng();
+        let tile = TILE_INDEX.GRASS_PLAIN_B;
+        if (r < 0.35) {
+          tile = TILE_INDEX.GRASS_PLAIN_A;
+        } else if (r < 0.6) {
+          tile = GRASS_VARIANTS[Math.floor(rng() * GRASS_VARIANTS.length)];
+        }
+        groundLayer.putTileAt(tile, tx, ty);
+      }
+    }
+
+    // Short dirt path from the left gate toward the village center
+    const gatePath = this.mapDef.gatePath;
+    for (let ty = gatePath.y0; ty <= gatePath.y1; ty++) {
+      for (let tx = gatePath.x0; tx <= gatePath.x1; tx++) {
+        const v =
+          rng() < 0.55
+            ? TILE_INDEX.DIRT_PATH_BASE
+            : DIRT_PATH_VARIANTS[Math.floor(rng() * DIRT_PATH_VARIANTS.length)];
+        groundLayer.putTileAt(v, tx, ty);
+        this.dirtTiles.add(`${tx},${ty}`);
+      }
+    }
+    this._paintPathFringes(detailLayer);
+
+    // Bush perimeter (the gate opening is skipped so the player can walk out)
+    for (let tx = 0; tx < W; tx++) {
+      detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_1, tx, 0);
+      detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_2, tx, H - 1);
+      this._addTileCollider(tx, 0, TILE.SIZE, TILE.SIZE);
+      this._addTileCollider(tx, H - 1, TILE.SIZE, TILE.SIZE);
+      this.blockedTiles.add(`${tx},0`);
+      this.blockedTiles.add(`${tx},${H - 1}`);
+    }
+    for (let ty = 1; ty < H - 1; ty++) {
+      if (!this._isPerimeterGateTile(0, ty)) {
+        detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_3, 0, ty);
+        this._addTileCollider(0, ty, TILE.SIZE, TILE.SIZE);
+        this.blockedTiles.add(`0,${ty}`);
+      }
+      detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_4, W - 1, ty);
+      this._addTileCollider(W - 1, ty, TILE.SIZE, TILE.SIZE);
+      this.blockedTiles.add(`${W - 1},${ty}`);
+    }
+
+    // Wooden posts framing the left return gate
+    if (gatePath.y0 - 1 > 0) {
+      detailLayer.putTileAt(TILE_INDEX.FENCE_POST_1, 0, gatePath.y0 - 1);
+    }
+    if (gatePath.y1 + 1 < H - 1) {
+      detailLayer.putTileAt(TILE_INDEX.FENCE_POST_2, 0, gatePath.y1 + 1);
+    }
+
+    this._addGateZones();
+  }
+
+  _paintPathFringes(detailLayer) {
+    const W = this.mapDef.widthTiles;
+    const H = this.mapDef.heightTiles;
+    for (let ty = 1; ty < H - 1; ty++) {
+      for (let tx = 1; tx < W - 1; tx++) {
+        if (this.dirtTiles.has(`${tx},${ty}`)) continue;
+        if (this.dirtTiles.has(`${tx},${ty + 1}`)) {
+          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_TOP, tx, ty);
+        } else if (this.dirtTiles.has(`${tx},${ty - 1}`)) {
+          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_BOTTOM, tx, ty);
+        } else if (this.dirtTiles.has(`${tx + 1},${ty}`)) {
+          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_LEFT, tx, ty);
+        } else if (this.dirtTiles.has(`${tx - 1},${ty}`)) {
+          detailLayer.putTileAt(TILE_INDEX.PATH_FRINGE_RIGHT, tx, ty);
+        }
+      }
+    }
+  }
+
+  /**
+   * True when a perimeter tile is part of a gate opening (the trigger rect that
+   * touches the left or right map edge). Used to leave the bushes open there.
+   */
+  _isPerimeterGateTile(tx, ty) {
+    const W = this.mapDef.widthTiles;
+    const gates = this.mapDef.gates || [];
+    for (const gate of gates) {
+      const y0 = gate.tileY;
+      const y1 = gate.tileY + gate.heightTiles - 1;
+      if (ty < y0 || ty > y1) continue;
+      const touchesLeft = gate.tileX === 0 && tx === 0;
+      const touchesRight =
+        gate.tileX + gate.widthTiles >= W && tx === W - 1;
+      if (touchesLeft || touchesRight) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Creates invisible rectangular gate zones. `GameScene` checks the player
+   * position against these each frame and switches maps automatically.
+   */
+  _addGateZones() {
+    const gates = this.mapDef.gates || [];
+    for (const gate of gates) {
+      const width = gate.widthTiles * TILE.SIZE;
+      const height = gate.heightTiles * TILE.SIZE;
+      const x0 = gate.tileX * TILE.SIZE;
+      const y0 = gate.tileY * TILE.SIZE;
+      const zone = this._track(
+        this.scene.add.zone(x0 + width / 2, y0 + height / 2, width, height)
+      );
+      this.gateZones.push({
+        zone,
+        targetMapId: gate.targetMapId,
+        entryPoint: gate.entryPoint,
+        x0,
+        y0,
+        x1: x0 + width,
+        y1: y0 + height,
+      });
+    }
+  }
+
+  /**
+   * Returns the gate whose trigger rectangle contains the player's feet, or null.
+   */
+  getGateAt(worldX, worldY) {
+    for (let i = 0; i < this.gateZones.length; i++) {
+      const gate = this.gateZones[i];
+      if (
+        worldX >= gate.x0 &&
+        worldX <= gate.x1 &&
+        worldY >= gate.y0 &&
+        worldY <= gate.y1
+      ) {
+        return gate;
+      }
+    }
+    return null;
   }
 
   _buildPlayerHouse() {
@@ -282,7 +473,9 @@ export class WorldBuilder {
     const houseCenterX = (hz.TILE_X + 2) * TILE.SIZE;
     const houseBottomY = (hz.TILE_Y + 3) * TILE.SIZE;
 
-    const houseContainer = this.scene.add.container(houseCenterX, houseBottomY);
+    const houseContainer = this._track(
+      this.scene.add.container(houseCenterX, houseBottomY)
+    );
     const bodyImg = this.scene.add
       .image(0, 0, ASSET_KEYS.BUILDINGS_SHEET, 'house_body_frame')
       .setOrigin(0.5, 1);
@@ -294,11 +487,13 @@ export class WorldBuilder {
     houseContainer.setDepth(DEPTH.Y_SORT_BASE + houseBottomY - 4);
 
     // Chimney smoke rising from cottage roof
-    const smoke = this.scene.add
-      .sprite(houseCenterX + 14, houseBottomY - 42, ASSET_KEYS.CHIMNEY_SMOKE, 0)
-      .setOrigin(0.5, 1)
-      .setAlpha(0.85)
-      .setDepth(DEPTH.Y_SORT_BASE + houseBottomY);
+    const smoke = this._track(
+      this.scene.add
+        .sprite(houseCenterX + 14, houseBottomY - 42, ASSET_KEYS.CHIMNEY_SMOKE, 0)
+        .setOrigin(0.5, 1)
+        .setAlpha(0.85)
+        .setDepth(DEPTH.Y_SORT_BASE + houseBottomY)
+    );
     smoke.play(`${ASSET_KEYS.CHIMNEY_SMOKE}_anim`);
 
     // Solid collider covering cottage footprint (tiles x=11..14, y=5..7)
@@ -311,22 +506,24 @@ export class WorldBuilder {
 
     // Small sign label above door (hidden until player is nearby)
     const labelFontPx = UI.FONT?.WORLD_LABEL || 9;
-    this.landmarkLabels.sleep = this.scene.add
-      .text(
-        hz.DOOR_TILE_X * TILE.SIZE + 8,
-        (hz.DOOR_TILE_Y - 0.25) * TILE.SIZE,
-        'Rumah (Tidur)',
-        pixelTextStyle(labelFontPx, '#fff6e0', {
-          resolution: 3,
-          stroke: '#120b07',
-          strokeThickness: 2,
-          backgroundColor: 'rgba(18,11,7,0.88)',
-          padding: { x: 4, y: 2 },
-        })
-      )
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.WORLD_PROMPT)
-      .setVisible(false);
+    this.landmarkLabels.sleep = this._track(
+      this.scene.add
+        .text(
+          hz.DOOR_TILE_X * TILE.SIZE + 8,
+          (hz.DOOR_TILE_Y - 0.25) * TILE.SIZE,
+          'Rumah (Tidur)',
+          pixelTextStyle(labelFontPx, '#fff6e0', {
+            resolution: 3,
+            stroke: '#120b07',
+            strokeThickness: 2,
+            backgroundColor: 'rgba(18,11,7,0.88)',
+            padding: { x: 4, y: 2 },
+          })
+        )
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.WORLD_PROMPT)
+        .setVisible(false)
+    );
   }
 
   _buildShippingAndShopArea() {
@@ -336,36 +533,42 @@ export class WorldBuilder {
     const sbY = (sb.TILE_Y + 1) * TILE.SIZE - 2;
     const labelFontPx = UI.FONT?.WORLD_LABEL || 9;
 
-    const crateBase = this.scene.add
-      .image(sbX, sbY, ASSET_KEYS.CRATE_BASE)
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.Y_SORT_BASE + sbY);
-    const crateTop = this.scene.add
-      .image(sbX, sbY - 5, ASSET_KEYS.CRATE_TOP)
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.Y_SORT_BASE + sbY + 1);
+    const crateBase = this._track(
+      this.scene.add
+        .image(sbX, sbY, ASSET_KEYS.CRATE_BASE)
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.Y_SORT_BASE + sbY)
+    );
+    const crateTop = this._track(
+      this.scene.add
+        .image(sbX, sbY - 5, ASSET_KEYS.CRATE_TOP)
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.Y_SORT_BASE + sbY + 1)
+    );
     this.shippingLid = crateTop;
     this.shippingBase = crateBase;
 
     this._addTileCollider(sb.TILE_X, sb.TILE_Y, 14, 12);
     this.blockedTiles.add(`${sb.TILE_X},${sb.TILE_Y}`);
 
-    this.landmarkLabels.sell = this.scene.add
-      .text(
-        sbX,
-        sbY - 20,
-        'Jual Panen',
-        pixelTextStyle(labelFontPx, '#ffd866', {
-          resolution: 3,
-          stroke: '#120b07',
-          strokeThickness: 2,
-          backgroundColor: 'rgba(18,11,7,0.88)',
-          padding: { x: 4, y: 2 },
-        })
-      )
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.WORLD_PROMPT)
-      .setVisible(false);
+    this.landmarkLabels.sell = this._track(
+      this.scene.add
+        .text(
+          sbX,
+          sbY - 20,
+          'Jual Panen',
+          pixelTextStyle(labelFontPx, '#ffd866', {
+            resolution: 3,
+            stroke: '#120b07',
+            strokeThickness: 2,
+            backgroundColor: 'rgba(18,11,7,0.88)',
+            padding: { x: 4, y: 2 },
+          })
+        )
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.WORLD_PROMPT)
+        .setVisible(false)
+    );
 
     // Seed Stall next to Shipping Box (`MAP_ZONES.SEED_STALL`)
     const st = MAP_ZONES.SEED_STALL;
@@ -380,37 +583,45 @@ export class WorldBuilder {
 
     const stallX = (st.TILE_X + 1) * TILE.SIZE;
     const stallY = (st.TILE_Y + 1) * TILE.SIZE;
-    this.scene.add
-      .image(stallX, stallY, ASSET_KEYS.BUILDINGS_SHEET, 'seed_stall_frame')
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.Y_SORT_BASE + stallY);
+    this._track(
+      this.scene.add
+        .image(stallX, stallY, ASSET_KEYS.BUILDINGS_SHEET, 'seed_stall_frame')
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.Y_SORT_BASE + stallY)
+    );
 
     // Display a seed bag & basket on the stall counter
-    this.scene.add
-      .image(stallX - 5, stallY - 6, ASSET_KEYS.ITEM_SEEDS)
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.Y_SORT_BASE + stallY + 1);
-    this.scene.add
-      .image(stallX + 5, stallY - 6, ASSET_KEYS.ICON_BASKET)
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.Y_SORT_BASE + stallY + 1);
+    this._track(
+      this.scene.add
+        .image(stallX - 5, stallY - 6, ASSET_KEYS.ITEM_SEEDS)
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.Y_SORT_BASE + stallY + 1)
+    );
+    this._track(
+      this.scene.add
+        .image(stallX + 5, stallY - 6, ASSET_KEYS.ICON_BASKET)
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.Y_SORT_BASE + stallY + 1)
+    );
 
-    this.landmarkLabels.shop = this.scene.add
-      .text(
-        stallX,
-        stallY - 25,
-        'Kios Bibit',
-        pixelTextStyle(labelFontPx, '#a8f0a0', {
-          resolution: 3,
-          stroke: '#120b07',
-          strokeThickness: 2,
-          backgroundColor: 'rgba(18,11,7,0.88)',
-          padding: { x: 4, y: 2 },
-        })
-      )
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.WORLD_PROMPT)
-      .setVisible(false);
+    this.landmarkLabels.shop = this._track(
+      this.scene.add
+        .text(
+          stallX,
+          stallY - 25,
+          'Kios Bibit',
+          pixelTextStyle(labelFontPx, '#a8f0a0', {
+            resolution: 3,
+            stroke: '#120b07',
+            strokeThickness: 2,
+            backgroundColor: 'rgba(18,11,7,0.88)',
+            padding: { x: 4, y: 2 },
+          })
+        )
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.WORLD_PROMPT)
+        .setVisible(false)
+    );
 
     this._addTileCollider(st.TILE_X, st.TILE_Y, 15, 12);
     this._addTileCollider(st.TILE_X + 1, st.TILE_Y, 15, 12);
@@ -423,10 +634,12 @@ export class WorldBuilder {
     const wmX = wm.TILE_X * TILE.SIZE;
     const wmY = wm.TILE_Y * TILE.SIZE;
 
-    const windmill = this.scene.add
-      .sprite(wmX, wmY, ASSET_KEYS.WINDMILL, 0)
-      .setOrigin(0.5, 0.72)
-      .setDepth(DEPTH.Y_SORT_BASE + wmY);
+    const windmill = this._track(
+      this.scene.add
+        .sprite(wmX, wmY, ASSET_KEYS.WINDMILL, 0)
+        .setOrigin(0.5, 0.72)
+        .setDepth(DEPTH.Y_SORT_BASE + wmY)
+    );
     windmill.play(`${ASSET_KEYS.WINDMILL}_anim`);
 
     this._addTileCollider(wm.TILE_X - 1, wm.TILE_Y, 16, 14);
@@ -436,8 +649,8 @@ export class WorldBuilder {
   }
 
   _populateNature(rng, detailLayer) {
-    const W = WORLD.WIDTH_TILES;
-    const H = WORLD.HEIGHT_TILES;
+    const W = this.mapDef.widthTiles;
+    const H = this.mapDef.heightTiles;
 
     // Curated tree positions framing the valley + perimeter woods
     const treePlacements = [
@@ -472,10 +685,12 @@ export class WorldBuilder {
       const worldY = (t.ty + 1) * TILE.SIZE;
       const key =
         t.type === 'round' ? ASSET_KEYS.TREE_ROUND : ASSET_KEYS.TREE_PINE;
-      const tree = this.scene.add
-        .sprite(worldX, worldY, key, 0)
-        .setOrigin(0.5, 0.92)
-        .setDepth(DEPTH.Y_SORT_BASE + worldY);
+      const tree = this._track(
+        this.scene.add
+          .sprite(worldX, worldY, key, 0)
+          .setOrigin(0.5, 0.92)
+          .setDepth(DEPTH.Y_SORT_BASE + worldY)
+      );
       tree.play(`${key}_anim`);
 
       this._addTileCollider(t.tx, t.ty, 14, 12);
@@ -492,12 +707,16 @@ export class WorldBuilder {
       this.blockedTiles.add(`${tx},${H - 1}`);
     }
     for (let ty = 1; ty < H - 1; ty++) {
-      detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_3, 0, ty);
-      detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_4, W - 1, ty);
-      this._addTileCollider(0, ty, TILE.SIZE, TILE.SIZE);
-      this._addTileCollider(W - 1, ty, TILE.SIZE, TILE.SIZE);
-      this.blockedTiles.add(`0,${ty}`);
-      this.blockedTiles.add(`${W - 1},${ty}`);
+      if (!this._isPerimeterGateTile(0, ty)) {
+        detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_3, 0, ty);
+        this._addTileCollider(0, ty, TILE.SIZE, TILE.SIZE);
+        this.blockedTiles.add(`0,${ty}`);
+      }
+      if (!this._isPerimeterGateTile(W - 1, ty)) {
+        detailLayer.putTileAt(TILE_INDEX.BUSH_LARGE_4, W - 1, ty);
+        this._addTileCollider(W - 1, ty, TILE.SIZE, TILE.SIZE);
+        this.blockedTiles.add(`${W - 1},${ty}`);
+      }
     }
 
     // Decorative rocks & stumps (solid)
@@ -505,7 +724,7 @@ export class WorldBuilder {
       { tx: 6, ty: 7, tile: TILE_INDEX.ROCK_LARGE },
       { tx: 22, ty: 14, tile: TILE_INDEX.ROCK_CLUSTER },
       { tx: 22, ty: 19, tile: TILE_INDEX.STUMP_1 },
-      { tx: 38, ty: 9, tile: TILE_INDEX.ROCK_MEDIUM },
+      { tx: 38, ty: 8, tile: TILE_INDEX.ROCK_MEDIUM },
     ];
     for (const r of rocks) {
       detailLayer.putTileAt(r.tile, r.tx, r.ty);
@@ -520,9 +739,11 @@ export class WorldBuilder {
       { tx: 38, ty: 21, key: ASSET_KEYS.MUSHROOM_RED },
     ];
     for (const m of mushrooms) {
-      const sp = this.scene.add
-        .sprite(m.tx * TILE.SIZE + 8, m.ty * TILE.SIZE + 8, m.key, 0)
-        .setDepth(DEPTH.DECOR_FLAT);
+      const sp = this._track(
+        this.scene.add
+          .sprite(m.tx * TILE.SIZE + 8, m.ty * TILE.SIZE + 8, m.key, 0)
+          .setDepth(DEPTH.DECOR_FLAT)
+      );
       sp.play(`${m.key}_anim`);
     }
 
@@ -566,6 +787,7 @@ export class WorldBuilder {
     const zone = this.scene.add.zone(cx, cy, width, height);
     this.scene.physics.add.existing(zone, true);
     this.colliders.add(zone);
+    this._track(zone);
   }
 
   isFarmableTile(tx, ty) {
@@ -594,6 +816,9 @@ export class WorldBuilder {
    * - `'shop'` at the Seed Stall (`MAP_ZONES.SEED_STALL`)
    */
   getNearbyLandmark(playerX, playerY, frontTile) {
+    // Village (and any future non-farm map) has no cottage / shop / stall landmarks
+    if (this.mapId !== MAP_IDS.FARM) return null;
+
     const ptx = Math.floor(playerX / TILE.SIZE);
     const pty = Math.floor(playerY / TILE.SIZE);
 
@@ -652,5 +877,35 @@ export class WorldBuilder {
         labelObj.setVisible(type === activeType);
       }
     }
+  }
+
+  /**
+   * Destroys every object this builder created (tilemap layers, containers,
+   * sprites, labels, zones, and static collider bodies). The shared tileset
+   * texture in the TextureManager is intentionally kept for the next map.
+   */
+  destroy() {
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    for (let i = this._tracked.length - 1; i >= 0; i--) {
+      const obj = this._tracked[i];
+      try {
+        if (obj && typeof obj.destroy === 'function') obj.destroy();
+      } catch (err) {
+        console.warn('[WorldBuilder] object destroy failed', err);
+      }
+    }
+    this._tracked.length = 0;
+
+    this.colliders = null;
+    this.gateZones = [];
+    this.landmarkLabels = {};
+    this.waterTiles.clear();
+    this.dirtTiles.clear();
+    this.farmableTiles.clear();
+    this.blockedTiles.clear();
+    this.shippingLid = null;
+    this.shippingBase = null;
   }
 }
