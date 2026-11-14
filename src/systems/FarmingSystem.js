@@ -34,6 +34,7 @@ export class FarmingSystem {
 
     /** @type {Map<string, Crop>} */
     this.cropEntities = new Map();
+    this.rainActive = false;
 
     this._restoreSavedPlots();
     this._bindEvents();
@@ -41,7 +42,35 @@ export class FarmingSystem {
 
   _bindEvents() {
     this._onDayAdvanced = () => this.onNewDay();
+    // Rain waters planted plots once per rainy period (idempotent; growth still only on sleep)
+    this._onWeatherChanged = (payload) => {
+      this.rainActive = Boolean(payload && payload.raining);
+      if (this.rainActive) this.applyRainWatering();
+    };
     eventBus.on(EVENTS.DAY_ADVANCED, this._onDayAdvanced);
+    eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
+  }
+
+  /**
+   * Marks every planted plot as watered while it is raining.
+   * Idempotent: plots that are already watered are skipped, and growth is only
+   * applied by `onNewDay()`, so repeated calls never double growth.
+   */
+  applyRainWatering() {
+    let changedCount = 0;
+    for (const [key, plot] of Object.entries(this.gameState.farmPlots)) {
+      if (!plot || typeof plot !== 'object') continue;
+      if (!plot.cropId || plot.watered) continue;
+      plot.watered = true;
+      this._syncEntity(key, plot, false);
+      changedCount += 1;
+    }
+
+    if (changedCount > 0) {
+      eventBus.emit(EVENTS.FARM_PLOT_UPDATED, null);
+      eventBus.emit(EVENTS.WEATHER_RAIN_WATERED, { count: changedCount });
+    }
+    return changedCount;
   }
 
   _restoreSavedPlots() {
@@ -266,6 +295,8 @@ export class FarmingSystem {
       existingPlot.cropId = cropDef.id;
       existingPlot.stage = 0;
       existingPlot.daysPlanted = 0;
+      // Planting during an active rain period starts already watered
+      if (this.rainActive) existingPlot.watered = true;
 
       this._syncEntity(key, existingPlot, true);
 
@@ -403,6 +434,7 @@ export class FarmingSystem {
 
   destroy() {
     eventBus.off(EVENTS.DAY_ADVANCED, this._onDayAdvanced);
+    eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
     for (const entity of this.cropEntities.values()) {
       entity.destroy();
     }

@@ -44,6 +44,8 @@ export class UIScene extends Phaser.Scene {
     this._leavingScene = false;
     this._currentHint = '';
     this._currentToast = '';
+    this.weatherRaining = false;
+    this._lastTimeSnapshot = null;
     this._lastCoins = this.gameScene?.gameState?.coins ?? null;
 
     this._buildHudElements();
@@ -118,6 +120,8 @@ export class UIScene extends Phaser.Scene {
       F.MIN_HUD_SLOT_PX || 20,
       Math.round((F.HUD_SLOT || 11) * s)
     );
+    this._timeFontMainPx = fontMain;
+    this._timeFontSmallPx = fontSmall;
     const fontBtnSm = Math.max(
       F.MIN_BUTTON_SM_PX || 26,
       Math.round((F.BUTTON_SM || 13) * s)
@@ -1087,15 +1091,41 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Renders the time bar label and appends a compact "Hujan" marker while it rains.
+   * The font shrinks only if needed so the label never collides with the coin counter;
+   * the bar itself keeps its size.
+   */
+  _refreshTimeLabel(snapshot = null) {
+    if (!this.timeText) return;
+    if (snapshot) this._lastTimeSnapshot = snapshot;
+    const snap = this._lastTimeSnapshot;
+    if (!snap || !snap.formatted) return;
+
+    const label = this.weatherRaining
+      ? `${snap.formatted} • Hujan`
+      : snap.formatted;
+    this.timeText.setText(label);
+
+    const s = this.uiScale || 1;
+    const mainPx = this._timeFontMainPx || 26;
+    const smallPx = this._timeFontSmallPx || 22;
+    const maxW = (172 - 21 - 6) * s;
+    this.timeText.setFontSize(mainPx);
+    if (this.timeText.width > maxW) {
+      this.timeText.setFontSize(
+        Math.max(smallPx, Math.round((mainPx * maxW) / this.timeText.width))
+      );
+    }
+  }
+
   _syncInitialHud() {
     const gs = this.gameScene?.gameState;
     if (!gs) return;
 
     if (this.gameScene?.timeSystem) {
       const snap = this.gameScene.timeSystem.getSnapshot();
-      if (this.timeText && snap?.formatted) {
-        this.timeText.setText(snap.formatted);
-      }
+      if (snap?.formatted) this._refreshTimeLabel(snap);
     }
     if (this.coinText) {
       this.coinText.setText(`${gs.coins ?? 0}G`);
@@ -1203,9 +1233,19 @@ export class UIScene extends Phaser.Scene {
     };
     this._onToast = (msg) => this._showToast(msg);
     this._onTimeUpdated = (snapshot) => {
-      if (this.timeText && snapshot?.formatted) {
-        this.timeText.setText(snapshot.formatted);
-      }
+      if (snapshot?.formatted) this._refreshTimeLabel(snapshot);
+    };
+    this._onWeatherChanged = (payload) => {
+      this.weatherRaining = Boolean(payload && payload.raining);
+      this._refreshTimeLabel();
+    };
+    this._onRainWatered = () => {
+      this._spawnFloatingText(
+        this.viewWidth / 2,
+        this.viewHeight * 0.38,
+        'Hujan menyiram kebun',
+        '#8fd0ff'
+      );
     };
     this._onSeedChanged = (seedId, stockCount) => {
       this._updateSeedDisplay(seedId, stockCount);
@@ -1345,6 +1385,8 @@ export class UIScene extends Phaser.Scene {
     eventBus.on(EVENTS.INTERACTION_HINT, this._onHint);
     eventBus.on(EVENTS.TOAST_MESSAGE, this._onToast);
     eventBus.on(EVENTS.TIME_UPDATED, this._onTimeUpdated);
+    eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
+    eventBus.on(EVENTS.WEATHER_RAIN_WATERED, this._onRainWatered);
     eventBus.on(EVENTS.SEED_CHANGED, this._onSeedChanged);
     eventBus.on(EVENTS.INVENTORY_UPDATED, this._onInventoryUpdated);
     eventBus.on(EVENTS.INVENTORY_ITEM_ADDED, this._onItemAdded);
@@ -1360,6 +1402,8 @@ export class UIScene extends Phaser.Scene {
       eventBus.off(EVENTS.INTERACTION_HINT, this._onHint);
       eventBus.off(EVENTS.TOAST_MESSAGE, this._onToast);
       eventBus.off(EVENTS.TIME_UPDATED, this._onTimeUpdated);
+      eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
+      eventBus.off(EVENTS.WEATHER_RAIN_WATERED, this._onRainWatered);
       eventBus.off(EVENTS.SEED_CHANGED, this._onSeedChanged);
       eventBus.off(EVENTS.INVENTORY_UPDATED, this._onInventoryUpdated);
       eventBus.off(EVENTS.INVENTORY_ITEM_ADDED, this._onItemAdded);

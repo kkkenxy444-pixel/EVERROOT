@@ -1,5 +1,5 @@
 import { ASSET_KEYS } from './assetKeys.js';
-import { SCENE_KEYS } from './gameConfig.js';
+import { SCENE_KEYS, WEATHER } from './gameConfig.js';
 
 /**
  * Scene-to-BGM mapping, time-of-day ambience, and SFX volume configuration.
@@ -72,6 +72,12 @@ export const AUDIO_CONFIG = Object.freeze({
     siang: { key: ASSET_KEYS.AMB_DAY_CICADA, volume: 0.12, loop: true },
     sore: null,
     malam: { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, volume: 0.08, loop: true },
+    // Rain overrides the phase ambience (cicadas/crickets fade out) while it is raining.
+    hujan: {
+      key: ASSET_KEYS.AMB_RAIN,
+      volume: WEATHER.RAIN_AMBIENCE_VOLUME,
+      loop: true,
+    },
   }),
 
   /** Individual SFX volume multipliers relative to SFX_VOLUME + maxInstances cap (1-2). */

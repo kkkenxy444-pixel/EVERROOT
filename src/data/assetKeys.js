@@ -72,6 +72,7 @@ export const ASSET_KEYS = Object.freeze({
   AMB_DAY_CICADA: 'amb_day_cicada',
   AMB_NIGHT_CRICKETS: 'amb_night_crickets',
   AMB_STREAM: 'amb_stream',
+  AMB_RAIN: 'amb_rain',
 
   // --- Audio: SFX ---
   SFX_UI_SELECT: 'sfx_ui_select',
@@ -397,6 +398,7 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.AMB_DAY_CICADA, path: 'audio/ambience/plains_12_cicada_loop.wav' },
   { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, path: 'audio/ambience/night-crickets.wav' },
   { key: ASSET_KEYS.AMB_STREAM, path: 'audio/ambience/stream.wav' },
+  { key: ASSET_KEYS.AMB_RAIN, path: 'audio/ambience/rain.wav' },
 
   // UI & Movement SFX
   { key: ASSET_KEYS.SFX_UI_SELECT, path: 'audio/sfx/ui/select_1.wav' },

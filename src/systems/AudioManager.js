@@ -1,5 +1,5 @@
 import { AUDIO_CONFIG } from '../data/audioConfig.js';
-import { SAVE, SCENE_KEYS } from '../data/gameConfig.js';
+import { SAVE, SCENE_KEYS, WEATHER } from '../data/gameConfig.js';
 import { eventBus, EVENTS } from './EventBus.js';
 
 /**
@@ -28,6 +28,7 @@ class AudioManagerClass {
     this.hiddenPaused = false;
     this.pendingSceneKey = null;
     this.pendingPhaseId = 'pagi';
+    this.weatherRaining = false;
     this._bgmFadeTimer = null;
     this._ambFadeTimer = null;
     this._fadingBgm = null;
@@ -158,6 +159,13 @@ class AudioManagerClass {
       eventBus.on(EVENTS.PHASE_CHANGED, (phase) => {
         if (this.pendingSceneKey === SCENE_KEYS.GAME && phase && phase.id) {
           this.playSceneBgm(SCENE_KEYS.GAME, phase.id);
+        }
+      });
+      eventBus.on(EVENTS.WEATHER_CHANGED, (payload) => {
+        this.weatherRaining =
+          Boolean(payload && payload.raining) && WEATHER.RAIN_SOUND_ENABLED;
+        if (this.pendingSceneKey === SCENE_KEYS.GAME) {
+          this.playPhaseAmbience(this.pendingPhaseId || 'pagi');
         }
       });
     }
@@ -303,7 +311,14 @@ class AudioManagerClass {
     this.pendingPhaseId = phaseId;
     if (!this.sound) return;
 
-    const ambCfg = AUDIO_CONFIG.PHASE_AMBIENCE[phaseId];
+    // Rain replaces the phase ambience (cicadas/crickets fade out) while it rains.
+    const rainCfg = WEATHER.RAIN_SOUND_ENABLED
+      ? AUDIO_CONFIG.PHASE_AMBIENCE.hujan
+      : null;
+    const ambCfg =
+      this.weatherRaining && rainCfg && rainCfg.key
+        ? rainCfg
+        : AUDIO_CONFIG.PHASE_AMBIENCE[phaseId];
     if (!ambCfg || !ambCfg.key) {
       this.stopAmbience(true);
       return;

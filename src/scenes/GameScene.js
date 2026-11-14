@@ -14,6 +14,7 @@ import {
   TILE,
   TIME,
   UI,
+  WEATHER,
   WORLD,
 } from '../data/gameConfig.js';
 import { TOOL_IDS, TOOLS } from '../data/items.js';
@@ -27,6 +28,7 @@ import { InputSystem } from '../systems/InputSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
+import { WeatherSystem } from '../systems/WeatherSystem.js';
 import { WorldBuilder } from '../systems/WorldBuilder.js';
 
 /**
@@ -124,6 +126,10 @@ export class GameScene extends Phaser.Scene {
     this.timeSystem = new TimeSystem(this.gameState);
     this._applyDayNightTint(this.timeSystem.getCurrentTint());
 
+    // 8b. Deterministic weather + camera-fixed rain (separate from the day/night tint)
+    this.weatherSystem = new WeatherSystem(this.gameState, this.timeSystem);
+    this._initWeatherVisuals(initW, initH);
+
     // 9. Camera follow with world bounds & integer zoom calculated from screen short edge
     const cam = this.cameras.main;
     cam.setBounds(0, 0, widthPx, heightPx);
@@ -152,6 +158,9 @@ export class GameScene extends Phaser.Scene {
       }
       if (this.inventorySystem) {
         this.inventorySystem.emitState();
+      }
+      if (this.weatherSystem) {
+        this.weatherSystem.emitInitialState();
       }
       if (SaveSystem.lastLoadRecoveredFromCorruption) {
         eventBus.emit(
@@ -231,6 +240,13 @@ export class GameScene extends Phaser.Scene {
       if (!this.debugEnabled) return;
       this._debugAdvanceDayImmediate();
     };
+    this._onWeatherChanged = (payload) => {
+      this._rainTarget = payload && payload.raining ? 1 : 0;
+      // Loading a save mid-rain shows rain immediately instead of waiting for a fade-in
+      if (payload && payload.initial) {
+        this._rainIntensity = this._rainTarget;
+      }
+    };
 
     this._onResize = (gameSize) => {
       const w = gameSize?.width || this.scale?.width || GAME.WIDTH;
@@ -249,6 +265,7 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.OPEN_SHOP, this._onOpenShop);
     eventBus.on(EVENTS.CLOSE_SHOP, this._onCloseShop);
     eventBus.on(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
+    eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
     // F6/F7/F8 debug keys when ?debug=1
@@ -292,6 +309,7 @@ export class GameScene extends Phaser.Scene {
       eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
       eventBus.off(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
+      eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
       window.removeEventListener('pagehide', this._onVisibilityChange);
@@ -325,6 +343,7 @@ export class GameScene extends Phaser.Scene {
       safeDestroy('inventorySystem');
       safeDestroy('farmingSystem');
       safeDestroy('fishingSystem');
+      safeDestroy('weatherSystem');
       safeDestroy('timeSystem');
       safeDestroy('player');
       if (Array.isArray(this.ambientAnimals)) {
@@ -588,6 +607,14 @@ export class GameScene extends Phaser.Scene {
       this.dayNightOverlay.setPosition(w / 2, h / 2);
       this.dayNightOverlay.setSize(w * 2, h * 2);
     }
+
+    // Weather layer tracks the viewport (rain is camera-fixed, drops wrap into new bounds)
+    this._rainWidth = w;
+    this._rainHeight = h;
+    if (this.weatherCloudOverlay) {
+      this.weatherCloudOverlay.setPosition(w / 2, h / 2);
+      this.weatherCloudOverlay.setSize(w * 2, h * 2);
+    }
   }
 
   _applyDayNightTint(tint) {
@@ -606,6 +633,111 @@ export class GameScene extends Phaser.Scene {
     // Keep fillAlpha = 1 and drive GameObject alpha directly so Phaser does not multiply them
     this.dayNightOverlay.setFillStyle(color, 1);
     this.dayNightOverlay.setAlpha(alpha);
+  }
+
+  /**
+   * Builds the camera-fixed weather layer: a separate cloudy overlay (independent from
+   * the day/night tint) and one pooled rain-line field capped at `WEATHER.MAX_RAIN_DROPS`.
+   */
+  _initWeatherVisuals(width, height) {
+    this._rainWidth = width;
+    this._rainHeight = height;
+    this._rainIntensity = 0;
+    this._rainTarget = 0;
+    this._cloudAlpha = 0;
+
+    this.weatherCloudOverlay = this.add
+      .rectangle(width / 2, height / 2, width * 2, height * 2, 0xffffff, 1)
+      .setOrigin(0.5, 0.5)
+      .setScrollFactor(0)
+      .setAlpha(0)
+      .setDepth(DEPTH.OVERLAY - 0.1);
+    // Gotcha: keep fillAlpha = 1 and animate GameObject alpha only (never multiplied twice)
+    this.weatherCloudOverlay.setFillStyle(WEATHER.CLOUD_COLOR, 1);
+
+    this.rainGfx = this.add
+      .graphics()
+      .setScrollFactor(0)
+      .setDepth(DEPTH.OVERLAY + 0.1);
+
+    // Pooled drops: allocated once here, mutated in place; update() allocates nothing.
+    this._rainDrops = [];
+    for (let i = 0; i < WEATHER.MAX_RAIN_DROPS; i += 1) {
+      this._rainDrops.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        len: 10 + Math.random() * 10,
+        speed:
+          WEATHER.RAIN_SPEED_MIN +
+          Math.random() * (WEATHER.RAIN_SPEED_MAX - WEATHER.RAIN_SPEED_MIN),
+      });
+    }
+  }
+
+  /**
+   * Smooth fade in/out of rain intensity plus the cloudy overlay. The overlay is dimmed
+   * at night so a rainy night stays readable instead of turning pitch black.
+   */
+  _updateRainVisual(delta) {
+    if (!this.rainGfx) return;
+
+    const step = Math.min(1, delta / Math.max(1, WEATHER.RAIN_FADE_MS));
+    this._rainIntensity += (this._rainTarget - this._rainIntensity) * step;
+    if (Math.abs(this._rainIntensity - this._rainTarget) < 0.002) {
+      this._rainIntensity = this._rainTarget;
+    }
+
+    const tintAlpha = Math.max(0, this._lastTintAlpha || 0);
+    const nightFactor = Math.min(1, tintAlpha / 0.47);
+    const cloudTarget =
+      (WEATHER.CLOUD_MAX_ALPHA * (1 - nightFactor) +
+        WEATHER.NIGHT_CLOUD_ALPHA * nightFactor) *
+      this._rainIntensity;
+    this._cloudAlpha += (cloudTarget - this._cloudAlpha) * step;
+
+    if (this.weatherCloudOverlay) {
+      this.weatherCloudOverlay.setAlpha(this._cloudAlpha < 0.002 ? 0 : this._cloudAlpha);
+    }
+
+    if (this._rainIntensity <= 0.01) {
+      if (this.rainGfx.visible) {
+        this.rainGfx.clear();
+        this.rainGfx.setVisible(false);
+      }
+      return;
+    }
+
+    this.rainGfx.setVisible(true);
+    this.rainGfx.clear();
+
+    const w = this._rainWidth || this.scale?.width || GAME.WIDTH;
+    const h = this._rainHeight || this.scale?.height || GAME.HEIGHT;
+    const dt = Math.min(64, delta) / 1000;
+    const drops = this._rainDrops;
+    const total = drops ? drops.length : 0;
+
+    this.rainGfx.lineStyle(
+      1,
+      WEATHER.RAIN_LINE_COLOR,
+      WEATHER.RAIN_LINE_ALPHA * this._rainIntensity
+    );
+
+    for (let i = 0; i < total; i += 1) {
+      const d = drops[i];
+      d.y += d.speed * dt;
+      d.x += WEATHER.RAIN_DRIFT * dt;
+
+      if (d.y > h + d.len) {
+        d.y = -d.len - Math.random() * 80;
+      }
+      if (d.x < -12) {
+        d.x += w + 24;
+      } else if (d.x > w + 12) {
+        d.x -= w + 24;
+      }
+
+      this.rainGfx.lineBetween(d.x, d.y, d.x - 1.5, d.y + d.len);
+    }
   }
 
   _saveCurrentState() {
@@ -880,6 +1012,10 @@ export class GameScene extends Phaser.Scene {
       this.timeSystem.update(delta);
       this._applyDayNightTint(this.timeSystem.getCurrentTint());
     }
+    if (this.weatherSystem) {
+      this.weatherSystem.update();
+    }
+    this._updateRainVisual(delta);
 
     const moveVec = this.inputSystem.getMovementVector();
     const isFishingActive = this.fishingSystem

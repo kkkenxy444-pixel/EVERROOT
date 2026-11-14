@@ -34,6 +34,10 @@ export const EVENTS = Object.freeze({
   FISHING_STATE_CHANGED: 'fishing:state_changed',
   FISHING_CAUGHT: 'fishing:caught',
 
+  // Weather
+  WEATHER_CHANGED: 'weather:changed',
+  WEATHER_RAIN_WATERED: 'weather:rain_watered',
+
   // Time & Sleep / Save
   TIME_UPDATED: 'time:updated',
   PHASE_CHANGED: 'time:phase_changed',

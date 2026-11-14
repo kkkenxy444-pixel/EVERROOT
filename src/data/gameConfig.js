@@ -275,6 +275,36 @@ export const TIME = Object.freeze({
   ]),
 });
 
+/**
+ * Deterministic weather derived from the day number (no extra save fields).
+ * Rain: ~20% of days from day 3 onward, max 2 consecutive rainy days,
+ * one 3-6 hour rain period per rainy day starting between 07:00 and 15:00.
+ */
+export const WEATHER = Object.freeze({
+  // Slightly above 0.2 so the 2-day cap still lands near a 20% rainy-day share
+  RAIN_CHANCE: 0.21,
+  FIRST_RAIN_DAY: 3,
+  MAX_CONSECUTIVE_RAINY_DAYS: 2,
+  RAIN_START_HOUR_MIN: 7,
+  RAIN_START_HOUR_MAX: 15,
+  RAIN_DURATION_MIN_HOURS: 3,
+  RAIN_DURATION_MAX_HOURS: 6,
+  // Visuals (camera-fixed, below UIScene HUD)
+  MAX_RAIN_DROPS: 120,
+  RAIN_FADE_MS: 1400,
+  RAIN_LINE_COLOR: 0xbfd9ff,
+  RAIN_LINE_ALPHA: 0.42,
+  RAIN_SPEED_MIN: 620,
+  RAIN_SPEED_MAX: 980,
+  RAIN_DRIFT: -70,
+  CLOUD_COLOR: 0x5a6b86,
+  CLOUD_MAX_ALPHA: 0.12,
+  NIGHT_CLOUD_ALPHA: 0.04,
+  // Audio: measured rain.wav mean -21.2 dB / peak -1.0 dB (16 s loop)
+  RAIN_SOUND_ENABLED: true,
+  RAIN_AMBIENCE_VOLUME: 0.08,
+});
+
 export const FARMING = Object.freeze({
   MAX_STAGE: 5, // stages 0..5 (stage 5 is harvest-ready)
   ACTION_LOCK_MS: 420,
