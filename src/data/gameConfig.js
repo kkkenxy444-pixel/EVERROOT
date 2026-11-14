@@ -43,7 +43,7 @@ export const WORLD = Object.freeze({
  * Outdoor map layout coordinates (in tile units, 16px per tile):
  * - Player cottage: top-left at (11, 5), size 4x3 tiles, door at tile (13, 8)
  * - Shipping box + seed stall: around tiles (18..20, 8)
- * - Farmable plot area: tiles x=8..19, y=12..19 (12x8 tiles = 96 farmable tiles)
+ * - Farmable plot area: tiles x=8..19, y=12..18 (12x7 tiles = 84 farmable tiles)
  * - Lake / Fishing pond: tiles x=26..37, y=10..21 with wooden pier at x=25..27, y=15
  * - Windmill landmark: tile (31, 5)
  */
