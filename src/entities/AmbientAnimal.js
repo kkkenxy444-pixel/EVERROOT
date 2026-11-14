@@ -1,5 +1,5 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
-import { AMBIENT_ANIMALS, DEPTH } from '../data/gameConfig.js';
+import { AMBIENT_ANIMALS, DEPTH, TILE } from '../data/gameConfig.js';
 import { AudioManager } from '../systems/AudioManager.js';
 
 const ANIMAL_TEXTURE_MAP = Object.freeze({
@@ -27,10 +27,12 @@ function randRange(min, max) {
 
 /**
  * Lightweight ambient village animal (`AmbientAnimal`):
- * - Simple random wander state machine ('idle' <-> 'walk') around an assigned `home` point
+ * - Free random wander state machine ('idle' <-> 'walk') across the whole map
+ * - Picks a target 6-10 tiles away and only accepts it when the straight line is clear
+ *   (no pathfinding; forbidden tiles are rejected by `AnimalTerrain`)
  * - Computes `flipX` from per-species `facesRight` so sprite always faces movement direction
  * - Rejects walk targets closer than `minSeparationPx` (~2 tiles) to other animals
- * - Stays strictly within assigned zone bounds and allowed terrain (land vs pond water)
+ * - Pauses while the player is within `PLAYER_PAUSE_RADIUS_PX`, resumes when they leave
  * - Y-sorted depth (`DEPTH.Y_SORT_BASE + y`), zero object allocations in `update()`
  */
 export class AmbientAnimal {
@@ -42,14 +44,13 @@ export class AmbientAnimal {
     this.sfxKey = ANIMAL_SFX_MAP[this.type] || null;
     this.facesRight = Boolean(config.facesRight);
     this.speed = config.speed || 14;
-    this.bounds = config.bounds; // { minX, minY, maxX, maxY }
-    this.homeX = config.homeX ?? config.x;
-    this.homeY = config.homeY ?? config.y;
-    this.roamRadius = config.roamRadius ?? AMBIENT_ANIMALS.ROAM_RADIUS_PX;
     this.minSeparationPx =
       config.minSeparationPx ?? AMBIENT_ANIMALS.MIN_SEPARATION_PX;
+    this.playerPauseRadius =
+      config.playerPauseRadius ?? AMBIENT_ANIMALS.PLAYER_PAUSE_RADIUS_PX;
     this.peers = config.peers || null;
     this.canWalkTo = config.canWalkTo; // (worldX, worldY) => boolean
+    this.canWalkSegment = config.canWalkSegment || null; // (x0,y0,x1,y1) => boolean
 
     this.targetX = config.x;
     this.targetY = config.y;
@@ -129,35 +130,29 @@ export class AmbientAnimal {
   _enterWalk() {
     if (!this.sprite || !this.sprite.scene) return;
 
-    const maxAttempts = AMBIENT_ANIMALS.TARGET_MAX_ATTEMPTS || 8;
+    const maxAttempts = AMBIENT_ANIMALS.TARGET_MAX_ATTEMPTS || 14;
     const minSep = this.minSeparationPx;
     const curX = this.sprite.x;
     const curY = this.sprite.y;
+    const minDist = (AMBIENT_ANIMALS.WANDER_MIN_TILES || 6) * TILE.SIZE;
+    const maxDist = (AMBIENT_ANIMALS.WANDER_MAX_TILES || 10) * TILE.SIZE;
     let chosenX = curX;
     let chosenY = curY;
     let found = false;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = randRange(this.roamRadius * 0.3, this.roamRadius);
-      let candX = this.homeX + Math.cos(angle) * dist;
-      let candY = this.homeY + Math.sin(angle) * dist;
+      const dist = randRange(minDist, maxDist);
+      const candX = curX + Math.cos(angle) * dist;
+      const candY = curY + Math.sin(angle) * dist;
 
-      if (candX < this.bounds.minX) candX = this.bounds.minX;
-      else if (candX > this.bounds.maxX) candX = this.bounds.maxX;
-      if (candY < this.bounds.minY) candY = this.bounds.minY;
-      else if (candY > this.bounds.maxY) candY = this.bounds.maxY;
-
-      const moveDx = candX - curX;
-      const moveDy = candY - curY;
-      if (moveDx * moveDx + moveDy * moveDy < 36) continue;
-
-      if (this.canWalkTo) {
-        const midX = (curX + candX) * 0.5;
-        const midY = (curY + candY) * 0.5;
-        if (!this.canWalkTo(candX, candY) || !this.canWalkTo(midX, midY)) {
-          continue;
-        }
+      if (this.canWalkTo && !this.canWalkTo(candX, candY)) continue;
+      // Reject when the straight line to the target crosses a forbidden tile
+      if (
+        this.canWalkSegment &&
+        !this.canWalkSegment(curX, curY, candX, candY)
+      ) {
+        continue;
       }
 
       if (this._isTooCloseToPeers(candX, candY, minSep)) {
@@ -189,8 +184,9 @@ export class AmbientAnimal {
     this.vy = (dy / dist) * this.speed;
     this.state = 'walk';
 
+    // Straight line is verified clear, so walk until the target is reached
     const travelMs = (dist / this.speed) * 1000;
-    this.stateTimerMs = Math.min(travelMs, AMBIENT_ANIMALS.WALK_MAX_MS);
+    this.stateTimerMs = travelMs;
 
     if (Math.abs(this.vx) > 0.05) {
       const movingRight = this.vx > 0;
@@ -204,13 +200,28 @@ export class AmbientAnimal {
   update(delta, playerX, playerY) {
     if (!this.sprite || !this.sprite.scene) return;
 
+    const pdx = this.sprite.x - playerX;
+    const pdy = this.sprite.y - playerY;
+    const playerNear =
+      pdx * pdx + pdy * pdy <=
+      this.playerPauseRadius * this.playerPauseRadius;
+
     this.stateTimerMs -= delta;
     if (this.stateTimerMs <= 0) {
       if (this.state === 'idle') {
-        this._enterWalk();
+        if (playerNear) {
+          this.stateTimerMs = AMBIENT_ANIMALS.PLAYER_PAUSE_RETRY_MS;
+        } else {
+          this._enterWalk();
+        }
       } else {
         this._enterIdle();
       }
+    }
+
+    // Stop immediately when the player walks up, resume once they move away
+    if (playerNear && this.state === 'walk') {
+      this._enterIdle();
     }
 
     if (this.state === 'walk') {
@@ -223,14 +234,7 @@ export class AmbientAnimal {
       const reachedTarget =
         (this.targetX - nx) * this.vx + (this.targetY - ny) * this.vy <= 0;
 
-      const insideBounds =
-        nx >= this.bounds.minX &&
-        nx <= this.bounds.maxX &&
-        ny >= this.bounds.minY &&
-        ny <= this.bounds.maxY;
-
       const walkable =
-        insideBounds &&
         (!this.canWalkTo || this.canWalkTo(nx, ny)) &&
         !this._wouldApproachPeer(curX, curY, nx, ny, this.minSeparationPx * 0.9);
 

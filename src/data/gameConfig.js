@@ -118,11 +118,23 @@ export const AMBIENT_ANIMALS = Object.freeze({
   MAX_COUNT: 8,
   IDLE_MIN_MS: 1600,
   IDLE_MAX_MS: 4200,
-  WALK_MIN_MS: 1100,
-  WALK_MAX_MS: 2600,
-  ROAM_RADIUS_PX: 30, // ~1.9 tiles roam radius around each animal's home point
   MIN_SEPARATION_PX: 32, // 2 tiles minimum distance between animals
-  TARGET_MAX_ATTEMPTS: 8,
+  TARGET_MAX_ATTEMPTS: 14,
+  // Free roaming: a random target 6-10 tiles from the current position, straight line only
+  WANDER_MIN_TILES: 6,
+  WANDER_MAX_TILES: 10,
+  // Land animals pause while the player is within ~2.5 tiles, then resume when they walk away
+  PLAYER_PAUSE_RADIUS_PX: 40,
+  PLAYER_PAUSE_RETRY_MS: 600,
+  // Initial spawn spread across the whole map
+  SPAWN_MIN_SEPARATION_PX: 112,
+  SPAWN_MAX_ATTEMPTS: 240,
+  // Forbidden-tile map (computed once at spawn): farm margin, pond water, pier, blocked tiles
+  FARM_MARGIN_TILES: 1,
+  FOOTPRINT_HALF_X_PX: 5,
+  FOOTPRINT_HALF_Y_PX: 3,
+  WATER_FOOTPRINT_HALF_PX: 4,
+  LINE_SAMPLE_STEP_PX: 8,
   SOUND_MAX_DISTANCE_PX: 160, // ~10 tiles from player so calls are heard before touching
   SOUND_MIN_INTERVAL_MS: 9000,
   SOUND_MAX_INTERVAL_MS: 18000,
@@ -137,7 +149,6 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'chicken',
       count: 2,
-      zone: 'PASTURE',
       facesRight: false,
       waterOnly: false,
       speed: 18,
@@ -147,7 +158,6 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'cow',
       count: 1,
-      zone: 'PASTURE',
       facesRight: false,
       waterOnly: false,
       speed: 11,
@@ -157,7 +167,6 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'sheep',
       count: 1,
-      zone: 'PASTURE',
       facesRight: false,
       waterOnly: false,
       speed: 12,
@@ -167,7 +176,6 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'pig',
       count: 1,
-      zone: 'PASTURE',
       facesRight: false,
       waterOnly: false,
       speed: 13,
@@ -177,10 +185,8 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'duck',
       count: 1,
-      zone: 'POND_WATER',
       facesRight: false,
       waterOnly: true,
-      roamRadius: 42,
       speed: 13,
       fps: 6,
       originY: 0.75,
@@ -188,7 +194,6 @@ export const AMBIENT_ANIMALS = Object.freeze({
     Object.freeze({
       type: 'bird',
       count: 2,
-      zone: 'BIRD_MEADOW',
       facesRight: false,
       waterOnly: false,
       speed: 22,

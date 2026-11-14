@@ -15,11 +15,11 @@ import {
   TIME,
   UI,
   WEATHER,
-  WORLD,
 } from '../data/gameConfig.js';
 import { TOOL_IDS, TOOLS } from '../data/items.js';
 import { AmbientAnimal } from '../entities/AmbientAnimal.js';
 import { Player } from '../entities/Player.js';
+import { AnimalTerrain } from '../systems/AnimalTerrain.js';
 import { AudioManager } from '../systems/AudioManager.js';
 import { eventBus, EVENTS } from '../systems/EventBus.js';
 import { FarmingSystem } from '../systems/FarmingSystem.js';
@@ -416,165 +416,47 @@ export class GameScene extends Phaser.Scene {
   _spawnAmbientAnimals() {
     if (!this.worldBuilder || !AMBIENT_ANIMALS?.SPAWNS) return;
 
-    const W = WORLD.WIDTH_TILES;
-    const H = WORLD.HEIGHT_TILES;
-    // Flat terrain lookup table (0 = walkable land, 1 = pond water, 2 = blocked land)
-    // so `canWalkToLand` / `canWalkToWater` allocate zero objects or strings inside `update()`.
-    const terrainGrid = new Uint8Array(W * H);
-    for (let ty = 0; ty < H; ty++) {
-      for (let tx = 0; tx < W; tx++) {
-        const idx = ty * W + tx;
-        if (this.worldBuilder.isWaterTile(tx, ty)) {
-          terrainGrid[idx] = 1;
-        } else if (this.worldBuilder.isTileBlocked(tx, ty)) {
-          terrainGrid[idx] = 2;
-        } else {
-          terrainGrid[idx] = 0;
-        }
-      }
-    }
-
-    const isCellType = (wx, wy, expected) => {
-      const tx = Math.floor(wx / TILE.SIZE);
-      const ty = Math.floor(wy / TILE.SIZE);
-      if (tx < 0 || tx >= W || ty < 0 || ty >= H) return false;
-      return terrainGrid[ty * W + tx] === expected;
-    };
-
-    const canWalkToLand = (wx, wy) =>
-      isCellType(wx - 5, wy - 3, 0) &&
-      isCellType(wx + 5, wy - 3, 0) &&
-      isCellType(wx - 5, wy + 3, 0) &&
-      isCellType(wx + 5, wy + 3, 0);
-
-    const canWalkToWater = (wx, wy) =>
-      isCellType(wx - 5, wy - 4, 1) &&
-      isCellType(wx + 5, wy - 4, 1) &&
-      isCellType(wx - 5, wy + 4, 1) &&
-      isCellType(wx + 5, wy + 4, 1);
-
-    // Derive POND_WATER pixel bounds directly from lake `waterTiles` inside `MAP_ZONES.POND_WATER`
-    const pwZone = MAP_ZONES.POND_WATER;
-    let pwMinTx = Infinity;
-    let pwMaxTx = -Infinity;
-    let pwMinTy = Infinity;
-    let pwMaxTy = -Infinity;
-    for (const key of this.worldBuilder.waterTiles) {
-      const [tx, ty] = key.split(',').map(Number);
-      if (
-        tx >= pwZone.X0 &&
-        tx <= pwZone.X1 &&
-        ty >= pwZone.Y0 &&
-        ty <= pwZone.Y1
-      ) {
-        if (tx < pwMinTx) pwMinTx = tx;
-        if (tx > pwMaxTx) pwMaxTx = tx;
-        if (ty < pwMinTy) pwMinTy = ty;
-        if (ty > pwMaxTy) pwMaxTy = ty;
-      }
-    }
-    const pondWaterBounds =
-      pwMinTx <= pwMaxTx && pwMinTy <= pwMaxTy
-        ? {
-            minX: pwMinTx * TILE.SIZE + 6,
-            minY: pwMinTy * TILE.SIZE + 6,
-            maxX: (pwMaxTx + 1) * TILE.SIZE - 6,
-            maxY: (pwMaxTy + 1) * TILE.SIZE - 6,
-          }
-        : {
-            minX: pwZone.X0 * TILE.SIZE + 6,
-            minY: pwZone.Y0 * TILE.SIZE + 6,
-            maxX: (pwZone.X1 + 1) * TILE.SIZE - 6,
-            maxY: (pwZone.Y1 + 1) * TILE.SIZE - 6,
-          };
-
-    // Expand spawn list up to MAX_COUNT and count totals per zone for even home distribution
-    const spawnSpecs = [];
-    const zoneTotals = {};
-    for (const def of AMBIENT_ANIMALS.SPAWNS) {
-      for (let i = 0; i < def.count; i++) {
-        if (spawnSpecs.length >= AMBIENT_ANIMALS.MAX_COUNT) break;
-        spawnSpecs.push(def);
-        zoneTotals[def.zone] = (zoneTotals[def.zone] || 0) + 1;
-      }
-    }
-
-    const zoneCounters = {};
+    // One forbidden-tile map shared by every animal (farm + margin, water, pier, blocked)
+    this.animalTerrain = new AnimalTerrain(this.worldBuilder);
+    const placed = [];
+    const spawnGap = AMBIENT_ANIMALS.SPAWN_MIN_SEPARATION_PX;
     const minSep = AMBIENT_ANIMALS.MIN_SEPARATION_PX;
-    const minSepSq = minSep * minSep;
+    let specIndex = 0;
 
-    const isFarEnoughFromSpawned = (x, y) => {
-      for (let k = 0; k < this.ambientAnimals.length; k++) {
-        const existing = this.ambientAnimals[k];
-        const dx = x - existing.sprite.x;
-        const dy = y - existing.sprite.y;
-        if (dx * dx + dy * dy < minSepSq) return false;
+    for (const def of AMBIENT_ANIMALS.SPAWNS) {
+      const canWalkTo = def.waterOnly
+        ? (wx, wy) => this.animalTerrain.isWaterWalkable(wx, wy)
+        : (wx, wy) => this.animalTerrain.isLandWalkable(wx, wy);
+      const canWalkSegment = (x0, y0, x1, y1) =>
+        this.animalTerrain.isLineWalkable(x0, y0, x1, y1, def.waterOnly);
+
+      for (let i = 0; i < def.count; i += 1) {
+        if (this.ambientAnimals.length >= AMBIENT_ANIMALS.MAX_COUNT) break;
+        const spot = this.animalTerrain.findSpawnPosition(
+          def.waterOnly,
+          placed,
+          spawnGap
+        );
+        if (!spot) continue;
+        placed.push(spot);
+
+        this.ambientAnimals.push(
+          new AmbientAnimal(this, {
+            type: def.type,
+            x: spot.x,
+            y: spot.y,
+            facesRight: def.facesRight,
+            initialFlipX: specIndex % 2 === 1,
+            minSeparationPx: minSep,
+            peers: this.ambientAnimals,
+            speed: def.speed,
+            originY: def.originY,
+            canWalkTo,
+            canWalkSegment,
+          })
+        );
+        specIndex += 1;
       }
-      return true;
-    };
-
-    for (let idx = 0; idx < spawnSpecs.length; idx++) {
-      const def = spawnSpecs[idx];
-      const slotIdx = zoneCounters[def.zone] || 0;
-      zoneCounters[def.zone] = slotIdx + 1;
-      const countInZone = zoneTotals[def.zone] || 1;
-
-      const zoneDef = MAP_ZONES[def.zone] || MAP_ZONES.PASTURE;
-      const bounds =
-        def.zone === 'POND_WATER'
-          ? pondWaterBounds
-          : {
-              minX: zoneDef.X0 * TILE.SIZE + 6,
-              minY: zoneDef.Y0 * TILE.SIZE + 6,
-              maxX: (zoneDef.X1 + 1) * TILE.SIZE - 6,
-              maxY: (zoneDef.Y1 + 1) * TILE.SIZE - 6,
-            };
-
-      const walkCheck = def.waterOnly ? canWalkToWater : canWalkToLand;
-
-      // Evenly spread home slots across the zone (staggered vertically when multiple share a zone)
-      const fracX = (slotIdx + 0.5) / countInZone;
-      const fracY = countInZone === 1 ? 0.5 : slotIdx % 2 === 0 ? 0.26 : 0.74;
-      let homeX = bounds.minX + fracX * (bounds.maxX - bounds.minX);
-      let homeY = bounds.minY + fracY * (bounds.maxY - bounds.minY);
-
-      if (!walkCheck(homeX, homeY) || !isFarEnoughFromSpawned(homeX, homeY)) {
-        let placed = false;
-        const cols = Math.max(3, countInZone + 2);
-        const rows = 3;
-        for (let r = 0; r < rows && !placed; r++) {
-          for (let c = 0; c < cols && !placed; c++) {
-            const gx =
-              bounds.minX + ((c + 0.5) / cols) * (bounds.maxX - bounds.minX);
-            const gy =
-              bounds.minY + ((r + 0.5) / rows) * (bounds.maxY - bounds.minY);
-            if (walkCheck(gx, gy) && isFarEnoughFromSpawned(gx, gy)) {
-              homeX = gx;
-              homeY = gy;
-              placed = true;
-            }
-          }
-        }
-      }
-
-      this.ambientAnimals.push(
-        new AmbientAnimal(this, {
-          type: def.type,
-          x: homeX,
-          y: homeY,
-          homeX,
-          homeY,
-          facesRight: def.facesRight,
-          initialFlipX: idx % 2 === 1,
-          roamRadius: def.roamRadius ?? AMBIENT_ANIMALS.ROAM_RADIUS_PX,
-          minSeparationPx: minSep,
-          peers: this.ambientAnimals,
-          speed: def.speed,
-          originY: def.originY,
-          bounds,
-          canWalkTo: walkCheck,
-        })
-      );
     }
   }
 
