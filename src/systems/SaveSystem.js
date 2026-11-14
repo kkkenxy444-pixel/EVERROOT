@@ -1,5 +1,13 @@
 import { CROPS } from '../data/crops.js';
-import { ECONOMY, FARMING, SAVE, TIME, WORLD } from '../data/gameConfig.js';
+import {
+  ECONOMY,
+  FARMING,
+  MAP_IDS,
+  MAPS,
+  SAVE,
+  TIME,
+  WORLD,
+} from '../data/gameConfig.js';
 import {
   isSeedUnlocked,
   SEED_ITEM_IDS,
@@ -94,6 +102,18 @@ class SaveSystemClass {
       coins: ECONOMY.STARTING_COINS,
       selectedToolId: TOOL_IDS.HOE,
       selectedSeedId: defaultSeedId,
+      mapId: MAP_IDS.FARM,
+      // Optional per-map positions. Legacy `player` is kept as a mirror of the current map.
+      mapPositions: {
+        [MAP_IDS.FARM]: {
+          tileX: WORLD.SPAWN_TILE_X,
+          tileY: WORLD.SPAWN_TILE_Y,
+        },
+        [MAP_IDS.VILLAGE]: {
+          tileX: MAPS.village.spawn.tileX,
+          tileY: MAPS.village.spawn.tileY,
+        },
+      },
       player: {
         tileX: WORLD.SPAWN_TILE_X,
         tileY: WORLD.SPAWN_TILE_Y,
@@ -104,6 +124,48 @@ class SaveSystemClass {
       // Optional Paket 2b field: per-animal lastCollectedDay (empty = all ready)
       livestock: {},
     };
+  }
+
+  _sanitizeTilePosition(raw, mapDef, fallback) {
+    const maxX = Math.max(1, mapDef.widthTiles - 2);
+    const maxY = Math.max(1, mapDef.heightTiles - 2);
+    const fallbackX = Number.isFinite(fallback?.tileX)
+      ? fallback.tileX
+      : mapDef.spawn.tileX;
+    const fallbackY = Number.isFinite(fallback?.tileY)
+      ? fallback.tileY
+      : mapDef.spawn.tileY;
+    return {
+      tileX: Number.isFinite(raw?.tileX)
+        ? Math.max(1, Math.min(maxX, Math.floor(raw.tileX)))
+        : Math.max(1, Math.min(maxX, Math.floor(fallbackX))),
+      tileY: Number.isFinite(raw?.tileY)
+        ? Math.max(1, Math.min(maxY, Math.floor(raw.tileY)))
+        : Math.max(1, Math.min(maxY, Math.floor(fallbackY))),
+    };
+  }
+
+  /**
+   * Sanitizes optional `mapPositions` using each map's own dimensions. Missing
+   * entries fall back to the legacy `player` position (current map) or the map spawn.
+   */
+  _sanitizeMapPositions(parsed, mapId) {
+    const source =
+      parsed.mapPositions && typeof parsed.mapPositions === 'object'
+        ? parsed.mapPositions
+        : null;
+    const positions = {};
+    for (const id of Object.keys(MAPS)) {
+      const def = MAPS[id];
+      const raw = source ? source[id] : null;
+      const legacy = id === mapId ? parsed.player : null;
+      positions[id] = this._sanitizeTilePosition(
+        raw,
+        def,
+        legacy || def.spawn
+      );
+    }
+    return positions;
   }
 
   _isSupportedVersion(ver) {
@@ -171,18 +233,12 @@ class SaveSystemClass {
         ? parsed.selectedToolId
         : base.selectedToolId;
 
-      const pTileX = Number.isFinite(parsed.player?.tileX)
-        ? Math.max(
-            1,
-            Math.min(WORLD.WIDTH_TILES - 2, Math.floor(parsed.player.tileX))
-          )
-        : base.player.tileX;
-      const pTileY = Number.isFinite(parsed.player?.tileY)
-        ? Math.max(
-            1,
-            Math.min(WORLD.HEIGHT_TILES - 2, Math.floor(parsed.player.tileY))
-          )
-        : base.player.tileY;
+      const mapId = MAPS[parsed.mapId] ? parsed.mapId : MAP_IDS.FARM;
+      const mapPositions = this._sanitizeMapPositions(
+        parsed,
+        mapId
+      );
+      const currentPos = mapPositions[mapId];
 
       let inventorySlots;
       if (Array.isArray(parsed.inventorySlots)) {
@@ -267,9 +323,11 @@ class SaveSystemClass {
         coins,
         selectedToolId,
         selectedSeedId,
+        mapId,
+        mapPositions,
         player: {
-          tileX: pTileX,
-          tileY: pTileY,
+          tileX: currentPos.tileX,
+          tileY: currentPos.tileY,
         },
         inventorySlots,
         inventory,
