@@ -46,6 +46,7 @@ npm run preview -- --host  # port 4173
   - `FarmingSystem.js` — cangkul, tanam, siram, tumbuh saat tidur, panen.
   - `FishingSystem.js` — state machine idle→casting→waiting→bite→reeling→caught.
   - `TimeSystem.js` — jam 06:00–24:00, fase, tint per jam, hari baru.
+  - `WeatherSystem.js` — hujan deterministik dari nomor hari (tanpa data save), max 2 hari beruntun, 1 periode 3–6 jam.
 - **ui/**
   - `TouchControls.js` — joystick kiri + tombol AKSI/ALAT/BIBIT kanan.
   - `ShopModal.js` — modal jual (`sell`) dan beli (`buy`), scroll, keyboard/touch.
@@ -66,6 +67,7 @@ npm run preview -- --host  # port 4173
 | Buka bibit per hari | `gameConfig.js` → `SEED_UNLOCK_SCHEDULE` |
 | Ikan: peluang, harga, timing | `gameConfig.js` → `FISHING` |
 | Tas, stack, ekonomi awal | `gameConfig.js` → `INVENTORY`, `ECONOMY` |
+| Cuaca hujan (peluang, jam, durasi, visual, suara) | `gameConfig.js` → `WEATHER`; ambience di `audioConfig.js` → `PHASE_AMBIENCE.hujan` |
 | Hewan ambient | `gameConfig.js` → `AMBIENT_ANIMALS`; perilaku di `AmbientAnimal.js` |
 | Teks/UI/tombol | `gameConfig.js` → `UI`, `UI.FONT`, `INPUT` |
 | Audio & volume | `audioConfig.js`; setelan runtime di `AudioManager.js` |
@@ -78,7 +80,8 @@ npm run preview -- --host  # port 4173
 - **Paket 2 — 11 tanaman `[SELESAI-BUILD]`** — 7 tanaman baru + unlock bertahap + ShopModal 11 baris. **Belum dites di HP**; verifikasi baru lewat simulasi Node dengan Phaser di-mock.
 - **Freeze Menu/scene `[SELESAI-BUILD]`** — perbaikan sudah di-build; tes Menu dari gameplay termasuk saat mancing masuk konfirmasi V1.
 - **Inventory 24 slot `[SELESAI-BUILD]`** — 24 slot, laci 6 kolom x 4 baris, collapsible (hanya terbuka saat diklik), scroll vertikal bila layar pendek, area slot >=48px, hotbar tidak berubah. **Belum dites di HP**; verifikasi lewat build + simulasi Node (save Hari 8 12 slot, isi 24, simpan/muat, jual).
-- Build produksi terakhir: **lolos** (34 module, Vite 6.4.5). Paket 2 memakai save v2 tanpa field tambahan.
+- **Paket 3 — Hujan `[SELESAI-BUILD]`** — hujan deterministik (~19–20% hari sejak Hari 3, max 2 hari beruntun), satu periode 07:00–15:00 selama 3–6 jam, petak tertanam otomatis basah + floating text sekali per periode, garis hujan 120 drop pooled + overlay mendung ≤0.12, ambience `rain.wav` volume 0.08 (RMS −21.2 dB) menggantikan jangkrik, label "Hujan" di bar waktu. **Belum dites di HP**; verifikasi build + simulasi Node.
+- Build produksi terakhir: **lolos** (35 module, Vite 6.4.5). Paket 2 & 3 memakai save v2 tanpa field tambahan.
 
 ## 6. Pelajaran penting / gotchas
 - **Freeze Phaser 3.90**: saat `stop(GAME)`, `DisplayList#shutdown` menghancurkan sprite player lebih dulu; `FishingSystem.destroy()` → `Player.unlockAction()` → `sprite.play()` melempar error dan transisi scene tidak jalan. Jangan sentuh GameObject di handler SHUTDOWN; gunakan guard + `try/catch`.
@@ -105,11 +108,11 @@ npm run preview -- --host  # port 4173
 - Jangan ubah aset asli; jangan sebar bundle aset publik.
 
 ## 9. Rencana berikutnya
-1. Paket 3: cuaca/hujan.
-2. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` tersedia).
-3. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
-4. V2: combat/musuh, cooking, quest/NPC, interior.
-5. Inventory: Kantung Bibit terpisah bila 24 slot masih kurang.
+1. Paket 2b: ternak, telur, susu (`egg.png`, `milk.png` tersedia).
+2. Perbaikan tint sore (19:00 lebih gelap, lebih oranye).
+3. V2: combat/musuh, cooking, quest/NPC, interior.
+4. Inventory: Kantung Bibit terpisah bila 24 slot masih kurang.
+5. Cuaca lanjutan: badai/petir atau musim hujan bila Paket 3 lolos tes HP.
 
 ## 10. Log sesi
 | Tanggal | Commit | Milestone |
@@ -126,3 +129,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-08 | `551625e` | Update memory tint/Paket 1/Paket 2 |
 | 2026-11-14 | `85cad61` | Inventory 24 slot: laci 6x4 scroll + migrasi save 12→24 |
 | 2026-11-14 | `247cdf3` | Tint sore/senja: keyframe 16:00–20:30 diperkuat |
+| 2026-11-14 | `8ff7429` | Paket 3: hujan (WeatherSystem, auto-siram, visual, ambience) |
