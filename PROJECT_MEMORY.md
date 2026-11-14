@@ -92,9 +92,8 @@ npm run preview -- --host  # port 4173
 
 ## 7. Masalah terbuka
 1. **Suara hewan belum lengkap**: belum ada kokok ayam jantan, domba, babi, bebek, burung.
-2. **Tint sore**: 19:00 terlalu terang, sore kurang oranye.
-3. **Paket 2 belum dites HP**: 11 tanaman, scroll/ keterbacaan ShopModal 11 baris, dan unlock bertahap.
-4. **Portrait/multitouch** belum dites penuh di HP.
+2. **Paket 2 belum dites HP**: 11 tanaman, scroll/ keterbacaan ShopModal 11 baris, dan unlock bertahap.
+3. **Portrait/multitouch** belum dites penuh di HP.
 
 ## 8. Konvensi kerja
 - Wajib baca `SKILL.md` relevan di `.agents/skills/` sebelum tugas (phaser, phaser-2d-game, game-development, game-ui-frontend, systematic-debugging, verification-before-completion).
@@ -126,3 +125,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-08 | `0476ee3` | Paket 2: 7 tanaman baru + unlock bibit bertahap |
 | 2026-11-08 | `551625e` | Update memory tint/Paket 1/Paket 2 |
 | 2026-11-14 | `85cad61` | Inventory 24 slot: laci 6x4 scroll + migrasi save 12→24 |
+| 2026-11-14 | `247cdf3` | Tint sore/senja: keyframe 16:00–20:30 diperkuat |
