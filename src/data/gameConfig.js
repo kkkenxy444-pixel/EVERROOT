@@ -114,6 +114,80 @@ export const MAP_ZONES = Object.freeze({
   }),
 });
 
+/**
+ * Registry map aktif. Satu GameScene melayani semua map (tanpa Scene kedua).
+ * `farm` tetap memakai konstanta WORLD lama; `village` adalah desa sementara
+ * 32x22 tile dengan satu jalan pendek dari gerbang kiri.
+ */
+export const MAP_IDS = Object.freeze({
+  FARM: 'farm',
+  VILLAGE: 'village',
+});
+
+export const MAP_TRANSITION = Object.freeze({
+  FADE_MS: 260,
+  GATE_ARM_DELAY_MS: 450,
+});
+
+export const MAPS = Object.freeze({
+  farm: Object.freeze({
+    id: MAP_IDS.FARM,
+    widthTiles: WORLD.WIDTH_TILES,
+    heightTiles: WORLD.HEIGHT_TILES,
+    seed: WORLD.SEED,
+    spawn: Object.freeze({
+      tileX: WORLD.SPAWN_TILE_X,
+      tileY: WORLD.SPAWN_TILE_Y,
+    }),
+    entryPoints: Object.freeze({
+      default: Object.freeze({
+        tileX: WORLD.SPAWN_TILE_X,
+        tileY: WORLD.SPAWN_TILE_Y,
+      }),
+      // Di luar zona gerbang kanan supaya tidak langsung memicu balik ke desa
+      fromVillage: Object.freeze({ tileX: 41, tileY: 10 }),
+      houseDoor: Object.freeze({
+        tileX: MAP_ZONES.HOUSE.DOOR_TILE_X,
+        tileY: MAP_ZONES.HOUSE.DOOR_TILE_Y + 1,
+      }),
+    }),
+    // Jalan setapak disambung dari ujung jalan lama (x=25) ke tepi kanan
+    gatePath: Object.freeze({ x0: 26, y0: 9, x1: 43, y1: 10 }),
+    gates: Object.freeze([
+      Object.freeze({
+        targetMapId: MAP_IDS.VILLAGE,
+        entryPoint: 'fromFarm',
+        tileX: 42,
+        tileY: 9,
+        widthTiles: 2,
+        heightTiles: 2,
+      }),
+    ]),
+  }),
+  village: Object.freeze({
+    id: MAP_IDS.VILLAGE,
+    widthTiles: 32,
+    heightTiles: 22,
+    seed: 4242,
+    spawn: Object.freeze({ tileX: 4, tileY: 10 }),
+    entryPoints: Object.freeze({
+      default: Object.freeze({ tileX: 4, tileY: 10 }),
+      fromFarm: Object.freeze({ tileX: 4, tileY: 10 }),
+    }),
+    gatePath: Object.freeze({ x0: 0, y0: 10, x1: 8, y1: 11 }),
+    gates: Object.freeze([
+      Object.freeze({
+        targetMapId: MAP_IDS.FARM,
+        entryPoint: 'fromVillage',
+        tileX: 0,
+        tileY: 10,
+        widthTiles: 2,
+        heightTiles: 2,
+      }),
+    ]),
+  }),
+});
+
 export const AMBIENT_ANIMALS = Object.freeze({
   MAX_COUNT: 8,
   IDLE_MIN_MS: 1600,
