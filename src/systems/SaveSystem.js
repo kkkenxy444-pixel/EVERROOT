@@ -101,6 +101,8 @@ class SaveSystemClass {
       inventorySlots,
       inventory,
       farmPlots: {},
+      // Optional Paket 2b field: per-animal lastCollectedDay (empty = all ready)
+      livestock: {},
     };
   }
 
@@ -244,6 +246,18 @@ class SaveSystemClass {
         }
       }
 
+      // Optional livestock field: old saves without it load as "all animals ready"
+      const livestock = {};
+      if (parsed.livestock && typeof parsed.livestock === 'object') {
+        for (const [animalId, entry] of Object.entries(parsed.livestock)) {
+          if (typeof animalId !== 'string' || !animalId) continue;
+          if (!entry || typeof entry !== 'object') continue;
+          const lastDay = Number(entry.lastCollectedDay);
+          if (!Number.isFinite(lastDay) || lastDay < 0) continue;
+          livestock[animalId] = { lastCollectedDay: Math.floor(lastDay) };
+        }
+      }
+
       return {
         version: SAVE.VERSION,
         savedAt: Number.isFinite(parsed.savedAt) ? parsed.savedAt : Date.now(),
@@ -260,6 +274,7 @@ class SaveSystemClass {
         inventorySlots,
         inventory,
         farmPlots,
+        livestock,
       };
     } catch {
       this.lastLoadRecoveredFromCorruption = true;

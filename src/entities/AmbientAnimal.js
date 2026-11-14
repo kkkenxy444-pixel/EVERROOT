@@ -1,5 +1,5 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
-import { AMBIENT_ANIMALS, DEPTH, TILE } from '../data/gameConfig.js';
+import { AMBIENT_ANIMALS, DEPTH, LIVESTOCK, TILE } from '../data/gameConfig.js';
 import { AudioManager } from '../systems/AudioManager.js';
 
 const ANIMAL_TEXTURE_MAP = Object.freeze({
@@ -19,6 +19,12 @@ const ANIMAL_SFX_MAP = Object.freeze({
   pig: null,
   duck: null,
   bird: null,
+});
+
+// Floating "ready to collect" icon per livestock product
+const PRODUCT_ICON_MAP = Object.freeze({
+  egg: ASSET_KEYS.ITEM_EGG,
+  milk: ASSET_KEYS.ITEM_MILK,
 });
 
 function randRange(min, max) {
@@ -51,6 +57,12 @@ export class AmbientAnimal {
     this.peers = config.peers || null;
     this.canWalkTo = config.canWalkTo; // (worldX, worldY) => boolean
     this.canWalkSegment = config.canWalkSegment || null; // (x0,y0,x1,y1) => boolean
+    // Stable id used by the livestock save field (`chicken_1`, `cow_1`, ...)
+    this.id = config.id || null;
+    this.productDef = LIVESTOCK.PRODUCT_ANIMALS[this.type] || null;
+    this.productReady = false;
+    this.productIcon = null;
+    this.iconPhase = 0;
 
     this.targetX = config.x;
     this.targetY = config.y;
@@ -60,6 +72,22 @@ export class AmbientAnimal {
       .setOrigin(0.5, config.originY ?? 0.8)
       .setFlipX(Boolean(config.initialFlipX))
       .setDepth(DEPTH.Y_SORT_BASE + config.y);
+
+    // One icon per productive animal, created once and only toggled later (no per-frame alloc)
+    if (this.productDef && scene.add && scene.add.image) {
+      const iconKey = PRODUCT_ICON_MAP[this.productDef.itemId];
+      if (iconKey) {
+        this.productIcon = scene.add
+          .image(
+            config.x,
+            config.y - LIVESTOCK.PRODUCT_ICON_OFFSET_Y,
+            iconKey
+          )
+          .setOrigin(0.5, 1)
+          .setDepth(DEPTH.Y_SORT_BASE + config.y + 30)
+          .setVisible(false);
+      }
+    }
 
     this.state = 'idle';
     this.stateTimerMs = randRange(400, AMBIENT_ANIMALS.IDLE_MAX_MS);
@@ -197,6 +225,20 @@ export class AmbientAnimal {
     }
   }
 
+  /**
+   * Shows/hides the floating egg/milk icon. Visibility only changes on day change,
+   * collection, or load, so the scene calls this from event handlers (never per frame).
+   */
+  setProductReady(ready) {
+    const next = Boolean(ready);
+    if (next === this.productReady) return;
+    this.productReady = next;
+    if (this.productIcon) {
+      this.productIcon.setVisible(next);
+      if (next) this.iconPhase = 0;
+    }
+  }
+
   update(delta, playerX, playerY) {
     if (!this.sprite || !this.sprite.scene) return;
 
@@ -252,6 +294,17 @@ export class AmbientAnimal {
       }
     }
 
+    // Floating product icon follows the animal with a slow bob (mutates the existing sprite)
+    if (this.productIcon && this.productReady) {
+      this.iconPhase += delta * LIVESTOCK.PRODUCT_ICON_BOB_SPEED;
+      const bob = Math.sin(this.iconPhase) * LIVESTOCK.PRODUCT_ICON_BOB_PX;
+      this.productIcon.setPosition(
+        this.sprite.x,
+        this.sprite.y - LIVESTOCK.PRODUCT_ICON_OFFSET_Y + bob
+      );
+      this.productIcon.setDepth(DEPTH.Y_SORT_BASE + this.sprite.y + 30);
+    }
+
     // Rare proximity SFX when player is nearby
     if (this.sfxKey) {
       this.soundTimerMs -= delta;
@@ -278,6 +331,14 @@ export class AmbientAnimal {
     } catch {
       // ignore if already destroyed by DisplayList#shutdown
     }
+    try {
+      if (this.productIcon && this.productIcon.scene) {
+        this.productIcon.destroy();
+      }
+    } catch {
+      // ignore if already destroyed by DisplayList#shutdown
+    }
+    this.productIcon = null;
     this.peers = null;
     this.sprite = null;
     this.scene = null;

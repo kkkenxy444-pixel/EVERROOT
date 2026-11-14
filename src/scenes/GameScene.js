@@ -9,6 +9,7 @@ import {
   GAME,
   getWorldZoom,
   isDebugModeEnabled,
+  LIVESTOCK,
   MAP_ZONES,
   SCENE_KEYS,
   TILE,
@@ -16,7 +17,7 @@ import {
   UI,
   WEATHER,
 } from '../data/gameConfig.js';
-import { TOOL_IDS, TOOLS } from '../data/items.js';
+import { ITEMS, TOOL_IDS, TOOLS } from '../data/items.js';
 import { AmbientAnimal } from '../entities/AmbientAnimal.js';
 import { Player } from '../entities/Player.js';
 import { AnimalTerrain } from '../systems/AnimalTerrain.js';
@@ -26,6 +27,7 @@ import { FarmingSystem } from '../systems/FarmingSystem.js';
 import { FishingSystem } from '../systems/FishingSystem.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
+import { LivestockSystem } from '../systems/LivestockSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
@@ -247,6 +249,9 @@ export class GameScene extends Phaser.Scene {
         this._rainIntensity = this._rainTarget;
       }
     };
+    this._onDayAdvancedLivestock = () => {
+      this._refreshLivestockVisuals();
+    };
 
     this._onResize = (gameSize) => {
       const w = gameSize?.width || this.scale?.width || GAME.WIDTH;
@@ -266,6 +271,7 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.CLOSE_SHOP, this._onCloseShop);
     eventBus.on(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
     eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
+    eventBus.on(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
     // F6/F7/F8 debug keys when ?debug=1
@@ -310,6 +316,7 @@ export class GameScene extends Phaser.Scene {
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
       eventBus.off(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
       eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
+      eventBus.off(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
       window.removeEventListener('pagehide', this._onVisibilityChange);
@@ -442,6 +449,7 @@ export class GameScene extends Phaser.Scene {
 
         this.ambientAnimals.push(
           new AmbientAnimal(this, {
+            id: `${def.type}_${i + 1}`,
             type: def.type,
             x: spot.x,
             y: spot.y,
@@ -458,6 +466,85 @@ export class GameScene extends Phaser.Scene {
         specIndex += 1;
       }
     }
+
+    // Icons for products that are already ready (including old saves without the field)
+    this._refreshLivestockVisuals();
+  }
+
+  /**
+   * Recomputes egg/milk availability from `gameState.day` + `lastCollectedDay`.
+   * Called on spawn/load, day advance, and after collecting (never per frame).
+   */
+  _refreshLivestockVisuals() {
+    if (!this.ambientAnimals || !this.gameState) return;
+    const day = this.gameState.day;
+    for (let i = 0; i < this.ambientAnimals.length; i += 1) {
+      const animal = this.ambientAnimals[i];
+      if (!animal.productDef) continue;
+      const lastDay = LivestockSystem.getLastCollectedDay(
+        this.gameState,
+        animal.id
+      );
+      animal.setProductReady(
+        LivestockSystem.isReady(animal.type, lastDay, day)
+      );
+    }
+  }
+
+  _getNearbyReadyAnimal() {
+    if (!this.ambientAnimals || !this.player) return null;
+    const maxSq = LIVESTOCK.COLLECT_RADIUS_PX * LIVESTOCK.COLLECT_RADIUS_PX;
+    const px = this.player.x;
+    const py = this.player.y;
+    let best = null;
+    let bestSq = maxSq;
+    for (let i = 0; i < this.ambientAnimals.length; i += 1) {
+      const animal = this.ambientAnimals[i];
+      if (!animal.productReady || !animal.sprite) continue;
+      const dx = animal.sprite.x - px;
+      const dy = animal.sprite.y - py;
+      const distSq = dx * dx + dy * dy;
+      if (distSq <= bestSq) {
+        bestSq = distSq;
+        best = animal;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Collects one egg/milk. Returns false when no ready animal is in reach, so the
+   * caller can fall through to other interactions.
+   */
+  _tryCollectAnimalProduct() {
+    const animal = this._getNearbyReadyAnimal();
+    if (!animal) return false;
+
+    const result = LivestockSystem.collect(
+      this.gameState,
+      animal.id,
+      animal.type,
+      this.gameState.day,
+      this.inventorySystem
+    );
+
+    if (!result.ok) {
+      if (result.reason === 'inventory_full') {
+        AudioManager.playSfx(ASSET_KEYS.SFX_UI_ERROR);
+        eventBus.emit(
+          EVENTS.TOAST_MESSAGE,
+          'Tas penuh! Jual hasil dulu sebelum mengambil.'
+        );
+      }
+      return true;
+    }
+
+    animal.setProductReady(false);
+    if (animal.sfxKey) {
+      AudioManager.playSfx(animal.sfxKey);
+    }
+    this._saveCurrentState();
+    return true;
   }
 
   /**
@@ -737,15 +824,45 @@ export class GameScene extends Phaser.Scene {
 
     const target = this._getEffectiveTargetTile();
     const tool = TOOLS[this.toolIndex];
+    const isFarmTool =
+      tool.id === TOOL_IDS.HOE ||
+      tool.id === TOOL_IDS.WATERING_CAN ||
+      tool.id === TOOL_IDS.SEEDS;
+    const harvestReady = this.farmingSystem
+      ? this.farmingSystem.isHarvestReady(target.tx, target.ty)
+      : false;
+    const farmTarget =
+      harvestReady ||
+      (isFarmTool && this.worldBuilder.isFarmableTile(target.tx, target.ty));
 
-    // If targeted plot is harvest-ready or player is using a farming tool (Hoe, Watering Can, Seeds)
+    // Existing farming interactions win whenever the faced tile is a valid target
+    if (this.farmingSystem && farmTarget) {
+      const res = this.farmingSystem.handleToolAction(
+        tool.id,
+        target.tx,
+        target.ty
+      );
+      if (res.handled && res.animAction) {
+        this.player.playOneShotAction(res.animAction, res.lockMs);
+      }
+      if (res.handled) return;
+    }
+
+    // Rod with water in front keeps the old fishing interaction
     if (
-      this.farmingSystem &&
-      (this.farmingSystem.isHarvestReady(target.tx, target.ty) ||
-        tool.id === TOOL_IDS.HOE ||
-        tool.id === TOOL_IDS.WATERING_CAN ||
-        tool.id === TOOL_IDS.SEEDS)
+      tool.id === TOOL_IDS.FISHING_ROD &&
+      this.fishingSystem &&
+      this.fishingSystem.findWaterTarget(this.player).valid
     ) {
+      this.fishingSystem.handleAction(this.player);
+      return;
+    }
+
+    // Livestock products are collected only when no other interaction applies
+    if (this._tryCollectAnimalProduct()) return;
+
+    // Preserve the old farming guidance when no valid farm target/animals are nearby
+    if (isFarmTool && this.farmingSystem) {
       const res = this.farmingSystem.handleToolAction(
         tool.id,
         target.tx,
@@ -943,6 +1060,13 @@ export class GameScene extends Phaser.Scene {
       hintText = this.fishingSystem.getFishingHint(this.player);
     } else if (this.farmingSystem) {
       hintText = this.farmingSystem.getPlotStatusHint(target.tx, target.ty);
+    }
+    if (!hintText) {
+      const readyAnimal = this._getNearbyReadyAnimal();
+      if (readyAnimal) {
+        const product = ITEMS[readyAnimal.productDef.itemId];
+        hintText = `[AKSI] Ambil ${product?.name || 'hasil ternak'}`;
+      }
     }
 
     if (this._lastHint !== hintText) {

@@ -59,6 +59,8 @@ export const ASSET_KEYS = Object.freeze({
   ITEM_FISH: 'item_fish',
   ITEM_WOOD: 'item_wood',
   ITEM_ROCK: 'item_rock',
+  ITEM_EGG: 'item_egg',
+  ITEM_MILK: 'item_milk',
 
   // --- Audio: BGM ---
   BGM_MENU: 'bgm_menu',
@@ -163,6 +165,8 @@ export const IMAGE_ASSETS = Object.freeze([
   { key: ASSET_KEYS.ITEM_FISH, path: 'farming/crops/fish.png', width: 11, height: 11 },
   { key: ASSET_KEYS.ITEM_WOOD, path: 'farming/crops/wood.png', width: 11, height: 11 },
   { key: ASSET_KEYS.ITEM_ROCK, path: 'farming/crops/rock.png', width: 10, height: 10 },
+  { key: ASSET_KEYS.ITEM_EGG, path: 'farming/crops/egg.png', width: 10, height: 11 },
+  { key: ASSET_KEYS.ITEM_MILK, path: 'farming/crops/milk.png', width: 10, height: 12 },
 
   // 11 crops x 6 stages (00..05): 4 V1 crops + 7 Paket 2 crops
   { key: 'crop_parsnip_00', path: 'farming/crops/parsnip_00.png', width: 6, height: 6 },

@@ -1,6 +1,6 @@
 import { ASSET_KEYS, cropStageKey } from './assetKeys.js';
 import { CROP_LIST, CROPS, getCropUnlockDay, isCropUnlocked } from './crops.js';
-import { FISHING, INVENTORY } from './gameConfig.js';
+import { FISHING, INVENTORY, LIVESTOCK } from './gameConfig.js';
 
 /**
  * Toolbar tools & inventory item catalog for Everroot V1.
@@ -354,6 +354,30 @@ export const ITEMS = Object.freeze({
     canSell: true,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+
+  // --- Livestock products (Paket 2b, dijual di Kotak Jual) ---
+  egg: Object.freeze({
+    id: 'egg',
+    name: 'Telur Ayam',
+    category: 'product',
+    iconKey: ASSET_KEYS.ITEM_EGG,
+    buyPrice: 0,
+    sellPrice: LIVESTOCK.EGG_SELL_PRICE,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  milk: Object.freeze({
+    id: 'milk',
+    name: 'Susu Sapi',
+    category: 'product',
+    iconKey: ASSET_KEYS.ITEM_MILK,
+    buyPrice: 0,
+    sellPrice: LIVESTOCK.MILK_SELL_PRICE,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
 });
 
 export const LEGACY_FISH_ID_MAP = Object.freeze({
@@ -379,9 +403,15 @@ export const FISH_ITEM_IDS = Object.freeze([
   'fish_large',
 ]);
 
+export const LIVESTOCK_ITEM_IDS = Object.freeze([
+  LIVESTOCK.EGG_ITEM_ID,
+  LIVESTOCK.MILK_ITEM_ID,
+]);
+
 export const SELLABLE_ITEM_IDS = Object.freeze([
   ...HARVEST_CROP_ITEM_IDS,
   ...FISH_ITEM_IDS,
+  ...LIVESTOCK_ITEM_IDS,
 ]);
 
 export function getSeedUnlockDay(seedItemId) {

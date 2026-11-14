@@ -203,6 +203,26 @@ export const AMBIENT_ANIMALS = Object.freeze({
   ]),
 });
 
+/**
+ * Paket 2b livestock: only the two chickens and the single cow produce goods.
+ * Readiness is day-based (no real-time timers): an animal is ready when
+ * `currentDay - lastCollectedDay >= intervalDays` (missing value = ready).
+ */
+export const LIVESTOCK = Object.freeze({
+  EGG_ITEM_ID: 'egg',
+  MILK_ITEM_ID: 'milk',
+  EGG_SELL_PRICE: 12,
+  MILK_SELL_PRICE: 30,
+  COLLECT_RADIUS_PX: 24,
+  PRODUCT_ICON_OFFSET_Y: 20,
+  PRODUCT_ICON_BOB_PX: 2,
+  PRODUCT_ICON_BOB_SPEED: 0.004,
+  PRODUCT_ANIMALS: Object.freeze({
+    chicken: Object.freeze({ itemId: 'egg', intervalDays: 1 }),
+    cow: Object.freeze({ itemId: 'milk', intervalDays: 2 }),
+  }),
+});
+
 export const PLAYER = Object.freeze({
   SPEED: 72, // px per second
   DIAGONAL_FACTOR: Math.SQRT1_2,
