@@ -116,8 +116,8 @@ export const MAP_ZONES = Object.freeze({
 
 /**
  * Registry map aktif. Satu GameScene melayani semua map (tanpa Scene kedua).
- * `farm` tetap memakai konstanta WORLD lama; `village` adalah desa sementara
- * 32x22 tile dengan satu jalan pendek dari gerbang kiri.
+ * `farm` tetap memakai konstanta WORLD lama; `village` kini 64x40 tile dengan
+ * jalan utama barat-timur, plaza tengah, dua klaster rumah, pasar, dan hutan kecil.
  */
 export const MAP_IDS = Object.freeze({
   FARM: 'farm',
@@ -127,6 +127,44 @@ export const MAP_IDS = Object.freeze({
 export const MAP_TRANSITION = Object.freeze({
   FADE_MS: 260,
   GATE_ARM_DELAY_MS: 450,
+});
+
+/**
+ * Tata letak desa (satuan tile). Semua koordinat dipakai `WorldBuilder._buildVillage`.
+ * - ROAD: jalan utama 3 tile dari gerbang barat sampai ujung timur (buntu)
+ * - PLAZA: lapang berjalan 18x11 tile di tengah map
+ * - MARKET: lapang pasar di timur plaza (3 kios)
+ * - FOREST: hutan kecil di sudut barat daya
+ */
+export const VILLAGE_LAYOUT = Object.freeze({
+  ROAD: Object.freeze({ X0: 1, Y0: 19, X1: 61, Y1: 21 }),
+  PLAZA: Object.freeze({ X0: 30, Y0: 15, X1: 47, Y1: 25 }),
+  MARKET: Object.freeze({ X0: 49, Y0: 15, X1: 60, Y1: 18 }),
+  FOREST: Object.freeze({ X0: 2, Y0: 29, X1: 20, Y1: 38 }),
+  // 2 klaster x 3 rumah. `tileX/tileY` = pojok kiri-atas badan rumah (4x3 tile).
+  HOUSES: Object.freeze([
+    Object.freeze({ tileX: 11, tileY: 11, tint: 0xffffff, cluster: 'north' }),
+    Object.freeze({ tileX: 18, tileY: 11, tint: 0xffe2c4, cluster: 'north' }),
+    Object.freeze({ tileX: 25, tileY: 11, tint: 0xd6ecff, cluster: 'north' }),
+    Object.freeze({ tileX: 11, tileY: 24, tint: 0xffd2d2, cluster: 'south' }),
+    Object.freeze({ tileX: 18, tileY: 24, tint: 0xdcffd2, cluster: 'south' }),
+    Object.freeze({ tileX: 25, tileY: 24, tint: 0xead8ff, cluster: 'south' }),
+  ]),
+  // 3 kios pasar di sisi timur plaza (badan kios ~2x2 tile).
+  STALLS: Object.freeze([
+    Object.freeze({ tileX: 50, tileY: 16 }),
+    Object.freeze({ tileX: 53, tileY: 16 }),
+    Object.freeze({ tileX: 56, tileY: 16 }),
+  ]),
+  // Pagar pendek sebagai bingkai sudut plaza (y=14 pagar atas, y=26 pagar bawah).
+  PLAZA_FENCES: Object.freeze([
+    Object.freeze({ x0: 30, x1: 32, y: 14 }),
+    Object.freeze({ x0: 45, x1: 47, y: 14 }),
+    Object.freeze({ x0: 30, x1: 32, y: 26 }),
+    Object.freeze({ x0: 45, x1: 47, y: 26 }),
+  ]),
+  // Semak penutup ujung timur jalan utama (buntu untuk ekspansi berikutnya).
+  EAST_DEAD_END: Object.freeze({ x: 62, y0: 18, y1: 22 }),
 });
 
 export const MAPS = Object.freeze({
@@ -164,25 +202,95 @@ export const MAPS = Object.freeze({
       }),
     ]),
   }),
+  /**
+   * Peta ASCII desa (64x40; x=0..63 barat->timur, y=0..39 utara->selatan).
+   * Legenda: G gerbang, = jalan/plaza/pasar/jalur, H badan rumah, K kios,
+   * T pohon, m jamur, f pagar, # semak tepi, r batu, : bunga, . rumput.
+   *
+   *     0         1         2         3         4         5         6
+   *  0 ################################################################
+   *  1 #..............................................................#
+   *  2 #....:.....................:...................................#
+   *  3 #....................::.......................:.....:..........#
+   *  4 #............................:.................................#
+   *  5 #..............................................................#
+   *  6 #.............T................T......:..........T....:........#
+   *  7 #...:T................T.:...............T.......:........T.....#
+   *  8 #..............................................................#
+   *  9 #...:..........................................................#
+   * 10 #..............:......:......:.................................#
+   * 11 #...:......HHHH...HHHH...HHHH::...:.:..................:..T....#
+   * 12 #...:......HHHH...HHHH...HHHH...............................:..#
+   * 13 #..T.......HHHH...HHHH...HHHH..................................#
+   * 14 #......:...:==.....==.....==..fff...:...:::::fff............T..#
+   * 15 #...........==.....==.....==.:====================KK=KK=KK===:.#
+   * 16 #...........==.....==.....==.:====================KK=KK=KK===..#
+   * 17 #...........==.....==:....==.:===============================..#
+   * 18 f...........==.....==.....==..===============================.##
+   * 19 G=============================================================##
+   * 20 G=============================================================##
+   * 21 f=============================================================##
+   * 22 #..............=......=:.:...===================..............##
+   * 23 #..T....:......=......=......===================:.........:....#
+   * 24 #......m..:HHHH=..HHHH=.:HHHH===================:......::......#
+   * 25 #..........HHHH=..HHHH=..HHHH===================.....:.........#
+   * 26 #..........HHHH=..HHHH=.:HHHH=fff.:::.::..:.:fff..:.......:....#
+   * 27 #...........====...====...====:................................#
+   * 28 #....................................................:.........#
+   * 29 #.....:....T..T:..............:.............:.:................#
+   * 30 #.T.m.............r............:...............................#
+   * 31 #........T.T..T......................:......:..................#
+   * 32 #......T....T..m......:........................................#
+   * 33 #..T..r...T................:...................................#
+   * 34 #........m....................::...............................#
+   * 35 #......T......................:....................:...........#
+   * 36 #..r......T..T.TT..m..............:...........:................#
+   * 37 #...........rT......................:...........:..............#
+   * 38 #..............................................................#
+   * 39 ################################################################
+   */
   village: Object.freeze({
     id: MAP_IDS.VILLAGE,
-    widthTiles: 32,
-    heightTiles: 22,
+    widthTiles: 64,
+    heightTiles: 40,
     seed: 4242,
-    spawn: Object.freeze({ tileX: 4, tileY: 10 }),
+    spawn: Object.freeze({ tileX: 6, tileY: 20 }),
     entryPoints: Object.freeze({
-      default: Object.freeze({ tileX: 4, tileY: 10 }),
-      fromFarm: Object.freeze({ tileX: 4, tileY: 10 }),
+      default: Object.freeze({ tileX: 6, tileY: 20 }),
+      // Di luar zona gerbang barat (0..1, 19..20) agar tidak langsung memicu balik
+      fromFarm: Object.freeze({ tileX: 6, tileY: 20 }),
     }),
-    gatePath: Object.freeze({ x0: 0, y0: 10, x1: 8, y1: 11 }),
+    // Jalan masuk dari gerbang barat menyatu dengan jalan utama di y=19..21
+    gatePath: Object.freeze({ x0: 0, y0: 19, x1: 9, y1: 20 }),
     gates: Object.freeze([
       Object.freeze({
         targetMapId: MAP_IDS.FARM,
         entryPoint: 'fromVillage',
         tileX: 0,
-        tileY: 10,
+        tileY: 19,
         widthTiles: 2,
         heightTiles: 2,
+      }),
+    ]),
+    // Titik NPC (data saja; belum ada NPC/logika). `facing` = vektor arah hadap.
+    NPC_SPOTS: Object.freeze([
+      Object.freeze({
+        id: 'plaza',
+        tileX: 38,
+        tileY: 20,
+        facing: Object.freeze({ x: 0, y: 1 }),
+      }),
+      Object.freeze({
+        id: 'house',
+        tileX: 13,
+        tileY: 14,
+        facing: Object.freeze({ x: 0, y: 1 }),
+      }),
+      Object.freeze({
+        id: 'market',
+        tileX: 53,
+        tileY: 18,
+        facing: Object.freeze({ x: 0, y: -1 }),
       }),
     ]),
   }),
