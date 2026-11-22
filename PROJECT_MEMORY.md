@@ -26,6 +26,7 @@ npm run preview -- --host  # port 4173
 - `src/style.css` — reset layar penuh, canvas 100%.
 - **data/**
   - `gameConfig.js` — semua konstanta global + helper zoom/UI/canvas/debug.
+  - `villageStructures.js` — `STRUCTURES` + `PROPS` Sunnyside (sel struktur & frame props).
   - `assetKeys.js` — key, path, ukuran frame, animasi karakter/hewan (177 aset).
   - `tileIndex.js` — indeks tile 16px terverifikasi.
   - `audioConfig.js` — BGM per scene/fase, ambience, SFX, batas instance.
@@ -42,6 +43,7 @@ npm run preview -- --host  # port 4173
   - `SaveSystem.js` — simpan versi 2 + migrasi v1 + fallback aman.
   - `InputSystem.js` — keyboard + vektor joystick sentuh.
   - `WorldBuilder.js` — builder per `mapId` (`_buildFarmValley`/`_buildVillage`), 4 layer, tilemap, collider, label, lacak objek + `destroy()`.
+  - `StructureBuilder.js` — kanvas struktur (cache global) + frame props desa.
   - `InventorySystem.js` — 24 slot, stack 20, beli/jual, seed unlock.
   - `FarmingSystem.js` — cangkul, tanam, siram, tumbuh saat tidur, panen.
   - `FishingSystem.js` — state machine idle→casting→waiting→bite→reeling→caught.
@@ -87,7 +89,7 @@ npm run preview -- --host  # port 4173
 - **Hewan bebas keliling `[SELESAI-BUILD]`** — 8 hewan, target 6–10 tile, tolak kebun+margin/air/dermaga/tile terblok via `Uint8Array`, bebek di kolam, jeda dekat pemain; simulasi 20.000 frame.
 - **Paket 2b — Ternak `[SELESAI-BUILD]`** — 2 ayam (12G/hari), 1 sapi (30G/2 hari), ikon melayang, `lastCollectedDay` opsional, tas penuh aman.
 - **Desa Fase 1 `[SELESAI-BUILD]`** — satu `GameScene` + `mapId` (tanpa Scene kedua), gerbang dua arah, fade + teardown map-local, desa tanpa kebun/mancing/ternak, save `mapId` + `mapPositions` (clamp), tidur manual hanya di farm (auto 24:00 pindah dulu).
-- **Desa Fase 2 `[SELESAI-BUILD]`** — 64x40: jalan utama 3 tile, plaza 18x11, 6 rumah 2 klaster (tint GameObject, pintu dekor, collider badan), 3 kios, hutan kecil, ujung timur buntu, perimeter Zone besar; `NPC_SPOTS` 3 (data). Display 94 / static 50; 5 siklus farm↔desa stabil. Kolam dilewati (tidak ada helper terpisah).
+- **Desa Fase 3 `[SELESAI-BUILD]`** — 64x40: 6 rumah Sunnyside + balai, 3 kios + peti/spanduk, plaza sumur/patung/api/papan, jalur pintu; collider 2 baris bawah; `NPC_SPOTS` 3; display 137/static 76; 5 siklus farm↔desa stabil.
 - Build terakhir: **lolos** (37 module, Vite 6.4.5); save v2 tetap.
 
 ## 6. Pelajaran penting / gotchas
@@ -101,6 +103,7 @@ npm run preview -- --host  # port 4173
 - **Hewan ambient** tanpa collider fisik; larangan via `AnimalTerrain` (satu grid), kebun margin 1 tile, dermaga terlarang.
 - **Save ternak**: `livestock` opsional; jangan bump versi; sanitasi entri invalid di `SaveSystem.load()`.
 - **Pindah map**: jangan `scene.stop(GameScene)`; `_switchMap` matikan sistem map-local + `WorldBuilder.destroy()` (tekstur tileset tetap) lalu player; listener fade-in sebelum `cam.fadeIn()`; spawn di luar zona gerbang; mapId tak dikenal → farm.
+- **Tekstur struktur desa**: canvas di-cache global (`village_struct_*`), jangan dihapus di `WorldBuilder.destroy()`.
 
 ## 7. Masalah terbuka
 1. **Suara hewan belum lengkap**: belum ada kokok ayam jantan, domba, babi, bebek, burung.
@@ -133,3 +136,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-14 | `b7023e4`–`2a6f757` | Registry map, multi-map, save posisi, pindah map |
 | 2026-11-14 | `a8c28de`,`3c8cf25` | Komentar kebun, listener fadeIn |
 | 2026-11-21 | `a017e3c` | Desa fase 2: tata letak 64x40 (94 display/50 static) |
+| 2026-11-22 | `1ac1d61` | Desa struktur Sunnyside + penataan (137/76) |
