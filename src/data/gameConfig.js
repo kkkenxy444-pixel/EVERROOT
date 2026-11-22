@@ -133,7 +133,9 @@ export const MAP_TRANSITION = Object.freeze({
  * Tata letak desa (satuan tile). Semua koordinat dipakai `WorldBuilder._buildVillage`.
  * - ROAD: jalan utama 3 tile dari gerbang barat sampai ujung timur (buntu)
  * - PLAZA: lapang berjalan 18x11 tile di tengah map
- * - MARKET: lapang pasar di timur plaza (3 kios)
+ * - MARKET: lapang pasar di timur plaza (2 kios lebar + 1 kios kecil)
+ * - BALAI: balai desa besar di utara plaza
+ * - PROPS: sumur, patung, api unggun, papan, peti, dan spanduk
  * - FOREST: hutan kecil di sudut barat daya
  */
 export const VILLAGE_LAYOUT = Object.freeze({
@@ -141,20 +143,74 @@ export const VILLAGE_LAYOUT = Object.freeze({
   PLAZA: Object.freeze({ X0: 30, Y0: 15, X1: 47, Y1: 25 }),
   MARKET: Object.freeze({ X0: 49, Y0: 15, X1: 60, Y1: 18 }),
   FOREST: Object.freeze({ X0: 2, Y0: 29, X1: 20, Y1: 38 }),
-  // 2 klaster x 3 rumah. `tileX/tileY` = pojok kiri-atas badan rumah (4x3 tile).
+  // 6 rumah Sunnyside. `tileX/tileY` = pojok kiri-atas tekstur struktur;
+  // ukuran diambil dari `STRUCTURES` di `villageStructures.js`.
   HOUSES: Object.freeze([
-    Object.freeze({ tileX: 11, tileY: 11, tint: 0xffffff, cluster: 'north' }),
-    Object.freeze({ tileX: 18, tileY: 11, tint: 0xffe2c4, cluster: 'north' }),
-    Object.freeze({ tileX: 25, tileY: 11, tint: 0xd6ecff, cluster: 'north' }),
-    Object.freeze({ tileX: 11, tileY: 24, tint: 0xffd2d2, cluster: 'south' }),
-    Object.freeze({ tileX: 18, tileY: 24, tint: 0xdcffd2, cluster: 'south' }),
-    Object.freeze({ tileX: 25, tileY: 24, tint: 0xead8ff, cluster: 'south' }),
+    Object.freeze({
+      structure: 'rumah_merah_besar',
+      tileX: 10,
+      tileY: 9,
+      mirror: false,
+      cluster: 'north',
+    }),
+    Object.freeze({
+      structure: 'rumah_biru',
+      tileX: 17,
+      tileY: 10,
+      mirror: true,
+      cluster: 'north',
+    }),
+    Object.freeze({
+      structure: 'rumah_hijau_kecil',
+      tileX: 24,
+      tileY: 11,
+      mirror: false,
+      cluster: 'north',
+    }),
+    Object.freeze({
+      structure: 'rumah_ungu_besar',
+      tileX: 9,
+      tileY: 26,
+      mirror: false,
+      cluster: 'south',
+    }),
+    Object.freeze({
+      structure: 'rumah_oranye_lebar',
+      tileX: 19,
+      tileY: 25,
+      mirror: true,
+      cluster: 'south',
+    }),
+    Object.freeze({
+      structure: 'rumah_cyan',
+      tileX: 27,
+      tileY: 27,
+      mirror: false,
+      cluster: 'south',
+    }),
   ]),
-  // 3 kios pasar di sisi timur plaza (badan kios ~2x2 tile).
+  // Balai desa besar di sisi utara plaza, pintu menghadap plaza.
+  BALAI: Object.freeze({
+    structure: 'balai_biru',
+    tileX: 35,
+    tileY: 7,
+    mirror: false,
+  }),
+  // 2 kios lebar + 1 kios kecil di sisi pasar (pintu menghadap selatan).
   STALLS: Object.freeze([
-    Object.freeze({ tileX: 50, tileY: 16 }),
-    Object.freeze({ tileX: 53, tileY: 16 }),
-    Object.freeze({ tileX: 56, tileY: 16 }),
+    Object.freeze({ structure: 'kios_hijau_lebar', tileX: 49, tileY: 15 }),
+    Object.freeze({ structure: 'kios_hijau_lebar', tileX: 54, tileY: 15 }),
+    Object.freeze({ structure: 'kios_hijau_kecil', tileX: 59, tileY: 15 }),
+  ]),
+  // Props dekoratif (frame tileset). `collider: true` = static body kecil di dasar.
+  PROPS: Object.freeze([
+    Object.freeze({ name: 'sumur_hias', tileX: 38, tileY: 17, collider: true }),
+    Object.freeze({ name: 'patung', tileX: 31, tileY: 23, collider: true }),
+    Object.freeze({ name: 'api_unggun', tileX: 28, tileY: 22, collider: true }),
+    Object.freeze({ name: 'papan', tileX: 29, tileY: 18, collider: false }),
+    Object.freeze({ name: 'peti_kecil', tileX: 52, tileY: 18, collider: true }),
+    Object.freeze({ name: 'peti_tumpuk', tileX: 56, tileY: 18, collider: true }),
+    Object.freeze({ name: 'spanduk', tileX: 53, tileY: 17, collider: false }),
   ]),
   // Pagar pendek sebagai bingkai sudut plaza (y=14 pagar atas, y=26 pagar bawah).
   PLAZA_FENCES: Object.freeze([
@@ -204,48 +260,50 @@ export const MAPS = Object.freeze({
   }),
   /**
    * Peta ASCII desa (64x40; x=0..63 barat->timur, y=0..39 utara->selatan).
-   * Legenda: G gerbang, = jalan/plaza/pasar/jalur, H badan rumah, K kios,
-   * T pohon, m jamur, f pagar, # semak tepi, r batu, : bunga, . rumput.
+   * Legenda: G gerbang, @ spawn, = jalan/plaza/pasar/jalur, H rumah, B balai,
+   * K kios, D pintu, W sumur, P patung, A api unggun, S papan, c peti kecil,
+   * C peti tumpuk, b spanduk, T pohon, m jamur, f pagar, # semak tepi,
+   * r batu, : bunga, . rumput.
    *
    *     0         1         2         3         4         5         6
    *  0 ################################################################
    *  1 #..............................................................#
-   *  2 #....:.....................:...................................#
-   *  3 #....................::.......................:.....:..........#
-   *  4 #............................:.................................#
-   *  5 #..............................................................#
-   *  6 #.............T................T......:..........T....:........#
-   *  7 #...:T................T.:...............T.......:........T.....#
-   *  8 #..............................................................#
-   *  9 #...:..........................................................#
-   * 10 #..............:......:......:.................................#
-   * 11 #...:......HHHH...HHHH...HHHH::...:.:..................:..T....#
-   * 12 #...:......HHHH...HHHH...HHHH...............................:..#
-   * 13 #..T.......HHHH...HHHH...HHHH..................................#
-   * 14 #......:...:==.....==.....==..fff...:...:::::fff............T..#
-   * 15 #...........==.....==.....==.:====================KK=KK=KK===:.#
-   * 16 #...........==.....==.....==.:====================KK=KK=KK===..#
-   * 17 #...........==.....==:....==.:===============================..#
-   * 18 f...........==.....==.....==..===============================.##
+   *  2 #..............................................................#
+   *  3 #................:..............:.........:.................:..#
+   *  4 #......................:.......................................#
+   *  5 #.....................................:........................#
+   *  6 #................................T.:.:..::.T.......:......:....#
+   *  7 #....:..........T.....T............BBBBBBB.......:.............#
+   *  8 #.::...:T::..:...............:.....BBBBBBB..:..................#
+   *  9 #........:HHHHH:..::.:.T.....T....:BBBBBBB:....................#
+   * 10 #.........HHHHH.:HHHHH::...:.......BBBBBBB...........:...:.....#
+   * 11 #........:HHHHH..HHHHH::HHHH:.....:BBBBBBB..T................T.#
+   * 12 #.........HHHHH::HHHHH:.HHHH:.....:BBBDBBB:....................#
+   * 13 #.........HHDHH::HHDHH.:HHHH:.....f::.=:..f...T...T.......T....#
+   * 14 #........f..=..ff:.=::f.HDHH:.fff.::::=.:.:.:fff.:.............#
+   * 15 #...........=:.....=...f.=:.f:===================KKKK=KKKK=KKK.#
+   * 16 #...........=......=:....=...:===================KKKK=KKKK=KKK.#
+   * 17 #...T.:...:.=......=::...=...:========W==========KDKKbKDKK=KDK.#
+   * 18 f...........=......=:....=...S======================c===C====.##
    * 19 G=============================================================##
-   * 20 G=============================================================##
+   * 20 G=====@=======================================================##
    * 21 f=============================================================##
-   * 22 #..............=......=:.:...===================..............##
-   * 23 #..T....:......=......=......===================:.........:....#
-   * 24 #......m..:HHHH=..HHHH=.:HHHH===================:......::......#
-   * 25 #..........HHHH=..HHHH=..HHHH===================.....:.........#
-   * 26 #..........HHHH=..HHHH=.:HHHH=fff.:::.::..:.:fff..:.......:....#
-   * 27 #...........====...====...====:................................#
-   * 28 #....................................................:.........#
-   * 29 #.....:....T..T:..............:.............:.:................#
-   * 30 #.T.m.............r............:...............................#
-   * 31 #........T.T..T......................:......:..................#
-   * 32 #......T....T..m......:........................................#
-   * 33 #..T..r...T................:...................................#
-   * 34 #........m....................::...............................#
-   * 35 #......T......................:....................:...........#
-   * 36 #..r......T..T.TT..m..............:...........:................#
-   * 37 #...........rT......................:...........:..............#
+   * 22 #.............:.=.........=.A.==================:.:.......:...##
+   * 23 #...............=..:.....T=..:=P================...............#
+   * 24 #......T.m......=T:.:.:.::=...==================...............#
+   * 25 #..T......:.::..=..HHHHHH.=...==================...:...........#
+   * 26 #...:...:HHHHHH:=.:HHHHHH:=.m:fff=.:.::::::m:fff.............:.#
+   * 27 #..:..m..HHHHHH:=.:HHHHHH:=HHHHH:=......:......................#
+   * 28 #.....:..HHHHHH:=..HHDHHH.=HHHHH.=.............................#
+   * 29 #........HHHHHH.=.f.=======HHHHH:=................:......:.....#
+   * 30 #.......:HHHHHH:=TT........HHDHH.=..............:..............#
+   * 31 #........HHDHHH:=........Tf.======.............................#
+   * 32 #.T...:mf.=======T.............................................#
+   * 33 #.....r.........TT.T..::........T..............................#
+   * 34 #......T...T.......T.....:....................:................#
+   * 35 #...T......T....T.T.T........:...........:.....................#
+   * 36 #..T.....T.....................:...........:.................:.#
+   * 37 #....T......r...:....................:..............:....:.....#
    * 38 #..............................................................#
    * 39 ################################################################
    */
@@ -276,19 +334,19 @@ export const MAPS = Object.freeze({
     NPC_SPOTS: Object.freeze([
       Object.freeze({
         id: 'plaza',
-        tileX: 38,
-        tileY: 20,
-        facing: Object.freeze({ x: 0, y: 1 }),
+        tileX: 40,
+        tileY: 18,
+        facing: Object.freeze({ x: -1, y: 0 }),
       }),
       Object.freeze({
         id: 'house',
-        tileX: 13,
-        tileY: 14,
-        facing: Object.freeze({ x: 0, y: 1 }),
+        tileX: 12,
+        tileY: 15,
+        facing: Object.freeze({ x: 0, y: -1 }),
       }),
       Object.freeze({
         id: 'market',
-        tileX: 53,
+        tileX: 51,
         tileY: 18,
         facing: Object.freeze({ x: 0, y: -1 }),
       }),

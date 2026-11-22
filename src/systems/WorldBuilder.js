@@ -15,6 +15,7 @@ import {
   waterTileFor,
 } from '../data/tileIndex.js';
 import { pixelTextStyle } from './FontLoader.js';
+import { StructureBuilder } from './StructureBuilder.js';
 
 /**
  * Deterministic PRNG (Mulberry32) so grass speckles, flowers, and pebble placement
@@ -47,6 +48,7 @@ export class WorldBuilder {
     this.blockedTiles = new Set();
     this.landmarkLabels = {};
     this.gateZones = [];
+    this.structures = new StructureBuilder(scene);
     this._tracked = [];
     this._destroyed = false;
   }
@@ -295,8 +297,8 @@ export class WorldBuilder {
   }
 
   /**
-   * Desa fase 2 (64x40): jalan utama barat-timur, plaza tengah, 6 rumah dalam
-   * dua klaster (utara & selatan jalan), pasar 3 kios di timur plaza, hutan
+   * Desa Sunnyside (64x40): jalan utama barat-timur, plaza tengah dengan sumur,
+   * 6 rumah struktur + balai di utara plaza, pasar 3 kios + peti/spanduk, hutan
    * kecil di sudut barat daya, dan ujung timur yang buntu. Semua dekorasi
    * deterministik dari seed map dan tidak diletakkan di atas jalan.
    */
@@ -364,40 +366,8 @@ export class WorldBuilder {
     // Konektor plaza <-> pasar (satu kolom di x=48)
     this._paintVillageDirt(groundLayer, rng, 48, 15, 48, 20);
 
-    // Jalur kecil tiap rumah ke jalan utama
-    for (const house of layout.HOUSES) {
-      const hx = house.tileX;
-      const hy = house.tileY;
-      if (house.cluster === 'north') {
-        this._paintVillageDirt(
-          groundLayer,
-          rng,
-          hx + 1,
-          hy + 3,
-          hx + 2,
-          layout.ROAD.Y0 - 1
-        );
-      } else {
-        // Rumah selatan menghadap selatan: jalur L turun di sisi kanan rumah
-        // lalu berbelok ke depan pintu, menyambung ke jalan utama di utara.
-        this._paintVillageDirt(
-          groundLayer,
-          rng,
-          hx + 4,
-          layout.ROAD.Y1 + 1,
-          hx + 4,
-          hy + 3
-        );
-        this._paintVillageDirt(
-          groundLayer,
-          rng,
-          hx + 1,
-          hy + 3,
-          hx + 4,
-          hy + 3
-        );
-      }
-    }
+    // Jalur kecil tiap rumah/balai ke pintu lalu menyambung ke jalan/plaza
+    this._paintVillageFootpaths(groundLayer, rng);
 
     this._paintPathFringes(detailLayer);
 
@@ -405,9 +375,12 @@ export class WorldBuilder {
     this._buildVillagePlazaFence(detailLayer);
     this._buildVillageDeadEnd(detailLayer);
 
-    for (const house of layout.HOUSES) this._buildVillageHouse(house);
-    for (const stall of layout.STALLS) this._buildVillageStall(stall);
+    for (const house of layout.HOUSES) this._buildVillageStructure(house);
+    this._buildVillageStructure(layout.BALAI);
+    for (const stall of layout.STALLS) this._buildVillageStructure(stall);
+    for (const prop of layout.PROPS) this._addVillageProp(prop);
 
+    this._buildVillageHouseGardens(rng, detailLayer);
     this._buildVillageNature(rng, detailLayer);
     this._addVillageWildflowers(rng, detailLayer);
 
@@ -428,6 +401,68 @@ export class WorldBuilder {
         groundLayer.putTileAt(v, tx, ty);
         this.dirtTiles.add(`${tx},${ty}`);
       }
+    }
+  }
+
+  /**
+   * Jalur dari pintu (baris bawah bangunan) ke jalan utama atau plaza.
+   * - Rumah utara: lurus ke bawah sampai jalan utama.
+   * - Rumah selatan: jalur L di depan pintu lalu naik di sisi kanan rumah.
+   * - Balai: lurus ke bawah sampai tepi utara plaza.
+   */
+  _paintVillageFootpaths(groundLayer, rng) {
+    const layout = VILLAGE_LAYOUT;
+    const road = layout.ROAD;
+    const plaza = layout.PLAZA;
+
+    for (const house of layout.HOUSES) {
+      const def = this.structures.getDef(house.structure);
+      if (!def) continue;
+      const doorX = house.tileX + Math.floor((def.w - 1) / 2);
+      const frontRow = house.tileY + def.h;
+
+      if (house.cluster === 'north') {
+        this._paintVillageDirt(
+          groundLayer,
+          rng,
+          doorX,
+          frontRow,
+          doorX,
+          road.Y0 - 1
+        );
+      } else {
+        const turnX = house.tileX + def.w + 1;
+        this._paintVillageDirt(
+          groundLayer,
+          rng,
+          house.tileX + 1,
+          frontRow,
+          turnX,
+          frontRow
+        );
+        this._paintVillageDirt(
+          groundLayer,
+          rng,
+          turnX,
+          road.Y1 + 1,
+          turnX,
+          frontRow
+        );
+      }
+    }
+
+    const balai = layout.BALAI;
+    const balaiDef = this.structures.getDef(balai.structure);
+    if (balaiDef) {
+      const doorX = balai.tileX + Math.floor((balaiDef.w - 1) / 2);
+      this._paintVillageDirt(
+        groundLayer,
+        rng,
+        doorX,
+        balai.tileY + balaiDef.h,
+        doorX,
+        plaza.Y0 - 1
+      );
     }
   }
 
@@ -509,95 +544,131 @@ export class WorldBuilder {
   }
 
   /**
-   * Satu rumah dekoratif dari crop `buildings_v001.png`. Tint diterapkan ke
-   * GameObject (bukan file aset). Tanpa interior: pintu hanya dekorasi dan
-   * collider hanya menutup badan rumah (bukan pintu).
+   * Satu bangunan desa dari `STRUCTURES` (tekstur canvas + satu sprite).
+   * Collider hanya di `blockRows` baris bawah supaya atap di atasnya bisa
+   * dilewati di belakang bangunan dan pintu tetap dapat didekati.
    */
-  _buildVillageHouse(house) {
-    const hz = MAP_ZONES.HOUSE;
-    this._ensureCroppedFrame(
-      ASSET_KEYS.BUILDINGS_SHEET,
-      'house_body_frame',
-      hz.BODY_CROP.x,
-      hz.BODY_CROP.y,
-      hz.BODY_CROP.w,
-      hz.BODY_CROP.h
+  _buildVillageStructure(entry) {
+    const placed = this.structures.addStructure(
+      entry.structure,
+      entry.tileX,
+      entry.tileY,
+      { mirror: !!entry.mirror }
     );
-    this._ensureCroppedFrame(
-      ASSET_KEYS.BUILDINGS_SHEET,
-      'house_door_frame',
-      hz.DOOR_CROP.x,
-      hz.DOOR_CROP.y,
-      hz.DOOR_CROP.w,
-      hz.DOOR_CROP.h
+    if (!placed) return;
+
+    const def = placed.def;
+    this._track(placed.sprite);
+
+    const blockRows = def.blockRows || 1;
+    const centerX = (entry.tileX + def.w / 2) * TILE.SIZE;
+    const centerY =
+      (entry.tileY + def.h - blockRows / 2) * TILE.SIZE;
+    this._addRectCollider(
+      centerX,
+      centerY,
+      def.w * TILE.SIZE,
+      blockRows * TILE.SIZE
     );
 
-    const centerX = (house.tileX + 2) * TILE.SIZE;
-    const bottomY = (house.tileY + 3) * TILE.SIZE;
-    const container = this._track(
-      this.scene.add.container(centerX, bottomY)
-    );
-    const bodyImg = this.scene.add
-      .image(0, 0, ASSET_KEYS.BUILDINGS_SHEET, 'house_body_frame')
-      .setOrigin(0.5, 1)
-      .setTint(house.tint);
-    const doorImg = this.scene.add
-      .image(-1, 0, ASSET_KEYS.BUILDINGS_SHEET, 'house_door_frame')
-      .setOrigin(0.5, 1)
-      .setTint(house.tint);
-    container.add([bodyImg, doorImg]);
-    container.setDepth(DEPTH.Y_SORT_BASE + bottomY - 4);
-
-    // Collider badan rumah saja (54x42 px), pintu tetap bisa dilewati.
-    this._addRectCollider(centerX, bottomY - 21, 54, 42);
-
-    for (let ty = house.tileY; ty < house.tileY + 3; ty++) {
-      for (let tx = house.tileX; tx < house.tileX + 4; tx++) {
+    for (let ty = entry.tileY; ty < entry.tileY + def.h; ty++) {
+      for (let tx = entry.tileX; tx < entry.tileX + def.w; tx++) {
         this.blockedTiles.add(`${tx},${ty}`);
       }
     }
   }
 
-  /** Satu kios pasar dari crop kios yang sudah ada (`MAP_ZONES.SEED_STALL.CROP`). */
-  _buildVillageStall(stall) {
-    const st = MAP_ZONES.SEED_STALL;
-    this._ensureCroppedFrame(
-      ASSET_KEYS.BUILDINGS_SHEET,
-      'seed_stall_frame',
-      st.CROP.x,
-      st.CROP.y,
-      st.CROP.w,
-      st.CROP.h
+  /** Satu prop dekoratif dari frame tileset, dengan collider kecil opsional. */
+  _addVillageProp(entry) {
+    const placed = this.structures.addProp(
+      entry.name,
+      entry.tileX,
+      entry.tileY
     );
+    if (!placed) return;
 
-    const stallX = (stall.tileX + 1) * TILE.SIZE;
-    const stallY = (stall.tileY + 1) * TILE.SIZE;
-    this._track(
-      this.scene.add
-        .image(stallX, stallY, ASSET_KEYS.BUILDINGS_SHEET, 'seed_stall_frame')
-        .setOrigin(0.5, 1)
-        .setDepth(DEPTH.Y_SORT_BASE + stallY)
-    );
+    this._track(placed.sprite);
 
-    this._addRectCollider(stallX, stallY - 8, st.CROP.w, 16);
-    for (let tx = stall.tileX; tx <= stall.tileX + 1; tx++) {
-      this.blockedTiles.add(`${tx},${stall.tileY}`);
+    if (entry.collider) {
+      const width = Math.min(placed.prop.w - 4, 18);
+      const height = 10;
+      this._addRectCollider(
+        placed.baseX,
+        placed.baseY - height / 2,
+        width,
+        height
+      );
+    }
+
+    this.blockedTiles.add(`${entry.tileX},${entry.tileY}`);
+  }
+
+  /**
+   * Pagar pendek di kedua sisi depan rumah/balai plus bunga di sekeliling
+   * footprint. Semua diletakkan hanya di tile kosong (bukan jalan/plaza) agar
+   * jalur pintu tetap terbuka.
+   */
+  _buildVillageHouseGardens(rng, detailLayer) {
+    const flowerTiles = [
+      TILE_INDEX.FLOWER_BLUE_SINGLE,
+      TILE_INDEX.FLOWER_RED_SINGLE,
+      TILE_INDEX.FLOWER_WHITE_SINGLE,
+      TILE_INDEX.FLOWER_BLUE_CLUSTER,
+      TILE_INDEX.FLOWER_RED_CLUSTER,
+      TILE_INDEX.FLOWER_WHITE_CLUSTER,
+    ];
+    const entries = [...VILLAGE_LAYOUT.HOUSES, VILLAGE_LAYOUT.BALAI];
+
+    for (const entry of entries) {
+      const def = this.structures.getDef(entry.structure);
+      if (!def) continue;
+
+      const frontRow = entry.tileY + def.h;
+      for (const tx of [entry.tileX - 1, entry.tileX + def.w]) {
+        if (!this._isVillageDecorFree(tx, frontRow)) continue;
+        detailLayer.putTileAt(TILE_INDEX.FENCE_MID_1, tx, frontRow);
+        this._addTileCollider(tx, frontRow, 14, 10);
+        this.blockedTiles.add(`${tx},${frontRow}`);
+      }
+
+      for (let ty = entry.tileY - 1; ty <= entry.tileY + def.h; ty++) {
+        for (let tx = entry.tileX - 1; tx <= entry.tileX + def.w; tx++) {
+          if (!this._isVillageDecorFree(tx, ty)) continue;
+          if (rng() >= 0.45) continue;
+          detailLayer.putTileAt(
+            flowerTiles[Math.floor(rng() * flowerTiles.length)],
+            tx,
+            ty
+          );
+        }
+      }
     }
   }
 
   _buildVillageNature(rng, detailLayer) {
+    // Pepohonan mengapit klaster rumah, balai, pasar, dan mulut gerbang.
     const curatedTrees = [
-      { tx: 5, ty: 7, type: 'round' },
-      { tx: 14, ty: 6, type: 'pine' },
+      { tx: 8, ty: 8, type: 'round' },
+      { tx: 16, ty: 7, type: 'pine' },
       { tx: 22, ty: 7, type: 'round' },
-      { tx: 31, ty: 6, type: 'pine' },
-      { tx: 40, ty: 7, type: 'round' },
-      { tx: 49, ty: 6, type: 'pine' },
-      { tx: 57, ty: 7, type: 'round' },
-      { tx: 3, ty: 13, type: 'pine' },
-      { tx: 3, ty: 23, type: 'round' },
-      { tx: 58, ty: 11, type: 'round' },
-      { tx: 60, ty: 14, type: 'pine' },
+      { tx: 23, ty: 9, type: 'pine' },
+      { tx: 29, ty: 9, type: 'round' },
+      { tx: 33, ty: 6, type: 'pine' },
+      { tx: 43, ty: 6, type: 'round' },
+      { tx: 44, ty: 11, type: 'pine' },
+      { tx: 46, ty: 13, type: 'round' },
+      { tx: 7, ty: 24, type: 'round' },
+      { tx: 17, ty: 24, type: 'pine' },
+      { tx: 25, ty: 23, type: 'round' },
+      { tx: 25, ty: 31, type: 'pine' },
+      { tx: 17, ty: 33, type: 'round' },
+      { tx: 32, ty: 33, type: 'pine' },
+      { tx: 7, ty: 34, type: 'round' },
+      { tx: 50, ty: 13, type: 'round' },
+      { tx: 58, ty: 13, type: 'pine' },
+      { tx: 61, ty: 11, type: 'round' },
+      { tx: 4, ty: 17, type: 'round' },
+      { tx: 3, ty: 25, type: 'pine' },
     ];
     for (const t of curatedTrees) {
       if (this._isVillageDecorFree(t.tx, t.ty)) {
@@ -619,11 +690,12 @@ export class WorldBuilder {
     }
 
     const mushrooms = [
-      { tx: 4, ty: 31, key: ASSET_KEYS.MUSHROOM_RED },
-      { tx: 9, ty: 35, key: ASSET_KEYS.MUSHROOM_BLUE },
-      { tx: 15, ty: 33, key: ASSET_KEYS.MUSHROOM_RED },
-      { tx: 19, ty: 37, key: ASSET_KEYS.MUSHROOM_BLUE },
-      { tx: 7, ty: 25, key: ASSET_KEYS.MUSHROOM_RED },
+      { tx: 6, ty: 27, key: ASSET_KEYS.MUSHROOM_RED },
+      { tx: 9, ty: 24, key: ASSET_KEYS.MUSHROOM_BLUE },
+      { tx: 17, ty: 30, key: ASSET_KEYS.MUSHROOM_RED },
+      { tx: 28, ty: 26, key: ASSET_KEYS.MUSHROOM_BLUE },
+      { tx: 43, ty: 26, key: ASSET_KEYS.MUSHROOM_RED },
+      { tx: 7, ty: 32, key: ASSET_KEYS.MUSHROOM_BLUE },
     ];
     for (const m of mushrooms) {
       if (!this._isVillageDecorFree(m.tx, m.ty)) continue;
