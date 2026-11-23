@@ -13,6 +13,7 @@ import { ITEMS, SEED_ITEM_IDS, TOOL_IDS, TOOLS } from '../data/items.js';
 import { AudioManager } from '../systems/AudioManager.js';
 import { eventBus, EVENTS } from '../systems/EventBus.js';
 import { pixelTextStyle } from '../systems/FontLoader.js';
+import { DialogueBox } from '../ui/DialogueBox.js';
 import { ShopModal } from '../ui/ShopModal.js';
 import { TouchControls } from '../ui/TouchControls.js';
 
@@ -59,6 +60,7 @@ export class UIScene extends Phaser.Scene {
 
     // Reusable ShopModal ('sell' Shipping Box / 'buy' Seed Stall)
     this.shopModal = new ShopModal(this);
+    this.dialogueBox = new DialogueBox(this);
 
     this._relayout(this.viewWidth, this.viewHeight);
     this._bindEvents();
@@ -1089,6 +1091,9 @@ export class UIScene extends Phaser.Scene {
     if (this.shopModal) {
       this.shopModal.relayout(w, h);
     }
+    if (this.dialogueBox) {
+      this.dialogueBox.relayout(w, h);
+    }
   }
 
   /**
@@ -1228,7 +1233,9 @@ export class UIScene extends Phaser.Scene {
       if (!this.hintText) return;
       this.hintText.setText(singleLine);
       this.hintText.setVisible(
-        Boolean(singleLine) && !(this.shopModal && this.shopModal.isOpen)
+        Boolean(singleLine) &&
+          !(this.shopModal && this.shopModal.isOpen) &&
+          !(this.dialogueBox && this.dialogueBox.isOpen)
       );
     };
     this._onToast = (msg) => this._showToast(msg);
@@ -1454,8 +1461,14 @@ export class UIScene extends Phaser.Scene {
       } catch (err) {
         console.error('[UIScene] shopModal.destroy failed', err);
       }
+      try {
+        if (this.dialogueBox) this.dialogueBox.destroy();
+      } catch (err) {
+        console.error('[UIScene] dialogueBox.destroy failed', err);
+      }
       this.touchControls = null;
       this.shopModal = null;
+      this.dialogueBox = null;
       this.gameScene = null;
     });
   }

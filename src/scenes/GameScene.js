@@ -14,6 +14,7 @@ import {
   MAPS,
   MAP_TRANSITION,
   MAP_ZONES,
+  NPC,
   SCENE_KEYS,
   TILE,
   TIME,
@@ -25,6 +26,7 @@ import { AmbientAnimal } from '../entities/AmbientAnimal.js';
 import { Player } from '../entities/Player.js';
 import { AnimalTerrain } from '../systems/AnimalTerrain.js';
 import { AudioManager } from '../systems/AudioManager.js';
+import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { eventBus, EVENTS } from '../systems/EventBus.js';
 import { FarmingSystem } from '../systems/FarmingSystem.js';
 import { FishingSystem } from '../systems/FishingSystem.js';
@@ -54,9 +56,11 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.isSleeping = false;
     this.isShopOpen = false;
+    this.isDialogActive = false;
     this.isTransitioning = false;
     this._pendingMapSwitch = null;
     this._gateArmedAt = 0;
+    this._zeroMove = { x: 0, y: 0 };
     this.debugEnabled = isDebugModeEnabled();
     this._lastGrowthReport = null;
     this._lastRoosterDay = -1;
@@ -115,6 +119,15 @@ export class GameScene extends Phaser.Scene {
     // 8b. Deterministic weather + camera-fixed rain (separate from the day/night tint)
     this.weatherSystem = new WeatherSystem(this.gameState, this.timeSystem);
     this._initWeatherVisuals(initW, initH);
+
+    // 8c. NPC dialogue state (data-driven; the village map owns the NPC entities)
+    this.dialogueSystem = new DialogueSystem({
+      getContext: () => ({
+        raining: Boolean(this.weatherSystem?.isRaining),
+        phase: this.timeSystem?.currentPhase?.id || 'pagi',
+        day: this.gameState?.day || 1,
+      }),
+    });
 
     // 9. Camera follow with world bounds & integer zoom calculated from screen short edge
     const cam = this.cameras.main;
@@ -296,6 +309,9 @@ export class GameScene extends Phaser.Scene {
    * sprites, labels, zones/static bodies), and the player last.
    */
   _teardownMap() {
+    if (this.dialogueSystem && this.dialogueSystem.isActive) {
+      this.dialogueSystem.close();
+    }
     this._destroyMapLocalSystems();
 
     try {
@@ -428,6 +444,9 @@ export class GameScene extends Phaser.Scene {
 
   _closePanelsForTransition() {
     try {
+      if (this.dialogueSystem && this.dialogueSystem.isActive) {
+        this.dialogueSystem.close();
+      }
       if (this.isShopOpen) {
         eventBus.emit(EVENTS.CLOSE_SHOP);
       }
@@ -461,6 +480,7 @@ export class GameScene extends Phaser.Scene {
       !this.player ||
       this.isSleeping ||
       this.isShopOpen ||
+      this.isDialogActive ||
       this.isTransitioning
     ) {
       return false;
@@ -561,7 +581,14 @@ export class GameScene extends Phaser.Scene {
     this._onAction = () => this._handlePrimaryAction();
     this._onCycleTool = () => this._cycleTool(1);
     this._onSelectTool = (idx) => {
-      if (this.isSleeping || this.isShopOpen || this.isTransitioning) return;
+      if (
+        this.isSleeping ||
+        this.isShopOpen ||
+        this.isDialogActive ||
+        this.isTransitioning
+      ) {
+        return;
+      }
       if (idx >= 0 && idx < TOOLS.length) {
         this.toolIndex = idx;
         this._emitToolChanged();
@@ -630,6 +657,30 @@ export class GameScene extends Phaser.Scene {
     this._onDayAdvancedLivestock = () => {
       this._refreshLivestockVisuals();
     };
+    this._onDialogueStarted = () => {
+      this.isDialogActive = true;
+      if (this.timeSystem && !this.isSleeping) this.timeSystem.setPaused(true);
+      if (this.inputSystem) this.inputSystem.setTouchVector(0, 0);
+      if (this.player && this.player.body) this.player.body.setVelocity(0, 0);
+      this._lastHint = null;
+      eventBus.emit(EVENTS.INTERACTION_HINT, '');
+      if (this.isShopOpen) eventBus.emit(EVENTS.CLOSE_SHOP);
+      eventBus.emit(EVENTS.CLOSE_UI_PANELS);
+    };
+    this._onDialogueEnded = () => {
+      this.isDialogActive = false;
+      if (this.timeSystem) this.timeSystem.setPaused(Boolean(this.isSleeping));
+      if (this.inputSystem) this.inputSystem.setTouchVector(0, 0);
+      if (
+        this.inputSystem &&
+        !this.isSleeping &&
+        !this.isShopOpen &&
+        !this.isTransitioning
+      ) {
+        this.inputSystem.enabled = true;
+      }
+      this._lastHint = null;
+    };
 
     this._onResize = (gameSize) => {
       const w = gameSize?.width || this.scale?.width || GAME.WIDTH;
@@ -650,6 +701,8 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
     eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
     eventBus.on(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
+    eventBus.on(EVENTS.DIALOGUE_STARTED, this._onDialogueStarted);
+    eventBus.on(EVENTS.DIALOGUE_ENDED, this._onDialogueEnded);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
     // F6/F7/F8 debug keys when ?debug=1
@@ -695,6 +748,8 @@ export class GameScene extends Phaser.Scene {
       eventBus.off(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
       eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
       eventBus.off(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
+      eventBus.off(EVENTS.DIALOGUE_STARTED, this._onDialogueStarted);
+      eventBus.off(EVENTS.DIALOGUE_ENDED, this._onDialogueEnded);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
       window.removeEventListener('pagehide', this._onVisibilityChange);
@@ -729,6 +784,7 @@ export class GameScene extends Phaser.Scene {
       safeDestroy('farmingSystem');
       safeDestroy('fishingSystem');
       safeDestroy('weatherSystem');
+      safeDestroy('dialogueSystem');
       safeDestroy('timeSystem');
       safeDestroy('player');
       if (Array.isArray(this.ambientAnimals)) {
@@ -1108,7 +1164,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   _cycleTool(step = 1) {
-    if (this.isSleeping || this.isShopOpen || this.isTransitioning) return;
+    if (
+      this.isSleeping ||
+      this.isShopOpen ||
+      this.isDialogActive ||
+      this.isTransitioning
+    ) {
+      return;
+    }
     this.toolIndex = (this.toolIndex + step + TOOLS.length) % TOOLS.length;
     this._emitToolChanged();
   }
@@ -1163,6 +1226,7 @@ export class GameScene extends Phaser.Scene {
       !this.player ||
       this.isSleeping ||
       this.isShopOpen ||
+      this.isDialogActive ||
       this.isTransitioning
     ) {
       return;
@@ -1200,6 +1264,16 @@ export class GameScene extends Phaser.Scene {
         eventBus.emit(EVENTS.OPEN_SHOP, 'buy');
         return;
       }
+      return;
+    }
+
+    // NPC desa: hanya setelah landmark lama tidak aktif (desa tidak punya landmark).
+    const nearbyNpc = this.worldBuilder.getNearbyNpc(
+      this.player.x,
+      this.player.y
+    );
+    if (nearbyNpc) {
+      if (this.dialogueSystem) this.dialogueSystem.start(nearbyNpc);
       return;
     }
 
@@ -1403,7 +1477,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.timeSystem && !this.isSleeping) {
+    if (this.timeSystem && !this.isSleeping && !this.isDialogActive) {
       this.timeSystem.update(delta);
       this._applyDayNightTint(this.timeSystem.getCurrentTint());
     }
@@ -1412,6 +1486,17 @@ export class GameScene extends Phaser.Scene {
     }
     this._updateRainVisual(delta);
     this._updateDebugStats();
+
+    // Dialog aktif: hujan & visual tetap berjalan, tetapi gerak pemain nol dan
+    // waktu in-game sudah dijeda oleh DialogueSystem listener.
+    if (this.isDialogActive) {
+      if (this.player) {
+        this.player.update(delta, this._zeroMove, (tx, ty) =>
+          this.worldBuilder ? this.worldBuilder.isDirtTile(tx, ty) : false
+        );
+      }
+      return;
+    }
 
     // Automatic gate entry (walking into the gate zone is enough, no AKSI)
     if (this._tryUseGate()) return;
@@ -1451,6 +1536,10 @@ export class GameScene extends Phaser.Scene {
     this.worldBuilder.updateLandmarkLabels(
       this.isShopOpen || this.isSleeping ? null : landmark?.type || null
     );
+    const nearbyNpc = this.worldBuilder.getNearbyNpc(
+      this.player.x,
+      this.player.y
+    );
 
     const tool = TOOLS[this.toolIndex];
     let hintText = '';
@@ -1458,6 +1547,8 @@ export class GameScene extends Phaser.Scene {
       hintText = this.fishingSystem.getFishingHint(this.player);
     } else if (landmark) {
       hintText = `[AKSI / E] ${landmark.label}`;
+    } else if (nearbyNpc) {
+      hintText = `[AKSI] ${NPC.HINT_LABEL}: ${nearbyNpc.name}`;
     } else if (tool && tool.id === TOOL_IDS.FISHING_ROD && this.fishingSystem) {
       hintText = this.fishingSystem.getFishingHint(this.player);
     } else if (this.farmingSystem) {

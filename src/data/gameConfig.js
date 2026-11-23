@@ -463,6 +463,36 @@ export const LIVESTOCK = Object.freeze({
   }),
 });
 
+/**
+ * NPC desa (Fase 3): data NPC ada di `src/data/npcs.js`, kalimat di `dialogues.js`.
+ * NPC hanya dibuat oleh `WorldBuilder` saat map desa dibangun dan ikut dihancurkan
+ * saat map berganti. Radius interaksi diukur dari titik kaki NPC.
+ */
+export const NPC = Object.freeze({
+  INTERACT_RADIUS_PX: 24,
+  COLLIDER_WIDTH: 12,
+  COLLIDER_HEIGHT: 8,
+  DOING_MIN_DELAY_MS: 9000,
+  DOING_MAX_DELAY_MS: 18000,
+  DOING_DURATION_MS: 620,
+  HINT_LABEL: 'Ngobrol',
+});
+
+/** Pengaturan kotak dialog (UI) dan pemilihan kalimat (DialogueSystem). */
+export const DIALOGUE = Object.freeze({
+  LINES_PER_TALK: 2,
+  TYPEWRITER_MS_PER_CHAR: 28,
+  BLIP_EVERY_CHARS: 4,
+  BLIP_MIN_INTERVAL_MS: 150,
+  // Geometri kotak dalam satuan UI (dikalikan uiScale integer).
+  BOX_MIN_WIDTH_UNITS: 280,
+  BOX_MAX_WIDTH_UNITS: 620,
+  BOX_HEIGHT_UNITS: 92,
+  BOX_PAD_UNITS: 12,
+  SIDE_RESERVED_UNITS: 150, // ruang untuk joystick (kiri) & tombol AKSI/ALAT (kanan)
+  NARROW_LIFT_UNITS: 130, // kotak dinaikkan di atas kontrol saat layar sempit
+});
+
 export const PLAYER = Object.freeze({
   SPEED: 72, // px per second
   DIAGONAL_FACTOR: Math.SQRT1_2,
@@ -729,6 +759,10 @@ export const UI = Object.freeze({
     MIN_HINT_PX: 26,
     FISHING_ALERT: 15, // 30px physical at uiScale=2
     MIN_FISHING_ALERT_PX: 28,
+    DIALOGUE_NAME: 16, // 32px physical at uiScale=2
+    MIN_DIALOGUE_NAME_PX: 30,
+    DIALOGUE_BODY: 15, // 30px physical at uiScale=2
+    MIN_DIALOGUE_BODY_PX: 28,
     FLOATING: 14, // 28px physical at uiScale=2
     MIN_FLOATING_PX: 26,
     WORLD_LABEL: 9, // 9 world px * zoom 3 = 27px physical on 1612x720

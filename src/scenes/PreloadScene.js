@@ -7,6 +7,7 @@ import {
   CHARACTER_PARTS,
   charLayerKey,
   IMAGE_ASSETS,
+  isCharacterLayerLoaded,
   SPRITESHEET_ASSETS,
 } from '../data/assetKeys.js';
 import { GAME, getUiScale, SCENE_KEYS, UI } from '../data/gameConfig.js';
@@ -180,9 +181,10 @@ export class PreloadScene extends Phaser.Scene {
       });
     };
 
-    // 1. Human character layered animations (9 actions x 3 layers)
+    // 1. Human character layered animations (player 3 parts + NPC hair idle/doing)
     for (const def of CHARACTER_ANIM_DEFS) {
       for (const part of CHARACTER_PARTS) {
+        if (!isCharacterLayerLoaded(def.action, part)) continue;
         const texKey = charLayerKey(def.action, part);
         ensureAnim(`${texKey}_anim`, texKey, def.frames, def.fps, def.repeat);
       }

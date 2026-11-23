@@ -38,6 +38,11 @@ export const EVENTS = Object.freeze({
   WEATHER_CHANGED: 'weather:changed',
   WEATHER_RAIN_WATERED: 'weather:rain_watered',
 
+  // NPC Dialogue
+  DIALOGUE_STARTED: 'dialogue:started',
+  DIALOGUE_LINE: 'dialogue:line',
+  DIALOGUE_ENDED: 'dialogue:ended',
+
   // Time & Sleep / Save
   TIME_UPDATED: 'time:updated',
   PHASE_CHANGED: 'time:phase_changed',

@@ -115,5 +115,11 @@ export const AUDIO_CONFIG = Object.freeze({
     // Ambient animal calls (verified RMS: chicken -25.4 dB / peak -9.1 dB, cow -24.0 dB / peak -10.3 dB)
     [ASSET_KEYS.SFX_ANIMAL_CHICKEN]: { volume: 0.4, detuneJitter: 60, maxInstances: 1 },
     [ASSET_KEYS.SFX_ANIMAL_COW]: { volume: 0.35, detuneJitter: 50, maxInstances: 1 },
+    // Blip dialog: sangat kecil, satu instance, restart halus agar tidak menumpuk
+    [ASSET_KEYS.SFX_DIALOGUE_BLIP]: {
+      volume: 0.18,
+      detuneJitter: 25,
+      maxInstances: 1,
+    },
   }),
 });

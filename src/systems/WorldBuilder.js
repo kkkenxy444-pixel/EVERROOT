@@ -4,10 +4,13 @@ import {
   MAP_IDS,
   MAPS,
   MAP_ZONES,
+  NPC as NPC_CONFIG,
   TILE,
   UI,
   VILLAGE_LAYOUT,
 } from '../data/gameConfig.js';
+import { NPC_DEFS, resolveNpcSpawns } from '../data/npcs.js';
+import { NPC } from '../entities/NPC.js';
 import {
   DIRT_PATH_VARIANTS,
   GRASS_VARIANTS,
@@ -48,6 +51,7 @@ export class WorldBuilder {
     this.blockedTiles = new Set();
     this.landmarkLabels = {};
     this.gateZones = [];
+    this.npcs = [];
     this.structures = new StructureBuilder(scene);
     this._tracked = [];
     this._destroyed = false;
@@ -384,7 +388,23 @@ export class WorldBuilder {
     this._buildVillageNature(rng, detailLayer);
     this._addVillageWildflowers(rng, detailLayer);
 
+    this._buildVillageNpcs();
     this._addGateZones();
+  }
+
+  /**
+   * NPC hanya untuk map desa. Setiap NPC dilacak di `_tracked` dan collider
+   * kecilnya dimasukkan ke grup collider map, sehingga teardown map ikut
+   * menghancurkan semuanya tanpa kebocoran.
+   */
+  _buildVillageNpcs() {
+    this.npcs = [];
+    for (const { def, spot } of resolveNpcSpawns(NPC_DEFS, this.mapDef)) {
+      const npc = new NPC(this.scene, def, spot);
+      this.npcs.push(npc);
+      if (npc.collider) this.colliders.add(npc.collider);
+      this._track(npc);
+    }
   }
 
   /**
@@ -1323,6 +1343,26 @@ export class WorldBuilder {
   }
 
   /**
+   * NPC terdekat dalam radius interaksi (default 24 px dari titik kaki).
+   * Hanya map desa yang punya NPC; map lain mengembalikan null.
+   */
+  getNearbyNpc(playerX, playerY, radius = NPC_CONFIG.INTERACT_RADIUS_PX) {
+    if (!Array.isArray(this.npcs) || this.npcs.length === 0) return null;
+    let best = null;
+    let bestDist = radius;
+    for (let i = 0; i < this.npcs.length; i += 1) {
+      const npc = this.npcs[i];
+      if (!npc || !npc.isAlive) continue;
+      const dist = npc.distanceTo(playerX, playerY);
+      if (dist <= bestDist) {
+        best = npc;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Shows only the world label for the building/landmark the player is currently near,
    * keeping the valley clean from floating text clutter when walking elsewhere.
    */
@@ -1356,6 +1396,7 @@ export class WorldBuilder {
 
     this.colliders = null;
     this.gateZones = [];
+    this.npcs = [];
     this.landmarkLabels = {};
     this.waterTiles.clear();
     this.dirtTiles.clear();

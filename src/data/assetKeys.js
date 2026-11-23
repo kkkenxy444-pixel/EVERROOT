@@ -108,11 +108,12 @@ export const ASSET_KEYS = Object.freeze({
   SFX_CHEST_OPEN: 'sfx_chest_open',
   SFX_ANIMAL_CHICKEN: 'sfx_animal_chicken',
   SFX_ANIMAL_COW: 'sfx_animal_cow',
+  SFX_DIALOGUE_BLIP: 'sfx_dialogue_blip',
 });
 
 /**
  * Helper to generate character layer texture key for (action, part).
- * parts: 'base' | 'spikeyhair' | 'tools'
+ * parts: player 'base' | 'spikeyhair' | 'tools'; NPC hair variants (idle/doing).
  * actions: 'idle' | 'walk' | 'dig' | 'watering' | 'doing' | 'casting' | 'waiting' | 'reeling' | 'caught'
  */
 export function charLayerKey(action, part) {
@@ -264,7 +265,31 @@ export const CHARACTER_ANIM_DEFS = Object.freeze([
   { action: 'caught', folder: 'caught', fileAction: 'caught', frames: 10, fps: 12, repeat: 0 },
 ]);
 
-export const CHARACTER_PARTS = Object.freeze(['base', 'spikeyhair', 'tools']);
+/**
+ * Player memakai tiga lapisan lama. NPC desa menambah variasi rambut yang hanya
+ * perlu animasi `idle` dan `doing`, sehingga preload tidak membengkak 9 aksi.
+ */
+export const PLAYER_CHARACTER_PARTS = Object.freeze(['base', 'spikeyhair', 'tools']);
+export const NPC_HAIR_PARTS = Object.freeze([
+  'longhair',
+  'bowlhair',
+  'mophair',
+  'shorthair',
+  'curlyhair',
+]);
+export const CHARACTER_PARTS = Object.freeze([
+  ...PLAYER_CHARACTER_PARTS,
+  ...NPC_HAIR_PARTS,
+]);
+export const NPC_CHARACTER_ACTIONS = Object.freeze(['idle', 'doing']);
+
+/** True bila strip (action, part) perlu dimuat/dianimasikan. */
+export function isCharacterLayerLoaded(action, part) {
+  return (
+    PLAYER_CHARACTER_PARTS.includes(part) ||
+    NPC_CHARACTER_ACTIONS.includes(action)
+  );
+}
 
 /** Spritesheets loaded via `this.load.spritesheet(key, path, { frameWidth, frameHeight })`. */
 export const SPRITESHEET_ASSETS = Object.freeze([
@@ -376,9 +401,11 @@ export const SPRITESHEET_ASSETS = Object.freeze([
     frameHeight: 16,
     frames: 4,
   },
-  // Character layered strips (9 actions x 3 parts = 27 strips, all 96x64 per frame)
+  // Character layered strips (player: 9 actions x 3 parts; NPC hair: idle/doing only)
   ...CHARACTER_ANIM_DEFS.flatMap((def) =>
-    CHARACTER_PARTS.map((part) => ({
+    CHARACTER_PARTS.filter((part) =>
+      isCharacterLayerLoaded(def.action, part)
+    ).map((part) => ({
       key: charLayerKey(def.action, part),
       path: `characters/human/${def.folder}/${part}_${def.fileAction}_strip${def.frames}.png`,
       frameWidth: 96,
@@ -442,4 +469,5 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.SFX_CHEST_OPEN, path: 'audio/sfx/home/life_chest_open_01.ogg' },
   { key: ASSET_KEYS.SFX_ANIMAL_CHICKEN, path: 'audio/sfx/animals/farm_chicken_cluck.ogg' },
   { key: ASSET_KEYS.SFX_ANIMAL_COW, path: 'audio/sfx/animals/farm_cow_moo.ogg' },
+  { key: ASSET_KEYS.SFX_DIALOGUE_BLIP, path: 'audio/sfx/social/farm_dialogue_blip_01.ogg' },
 ]);

@@ -1,4 +1,4 @@
-import { ASSET_KEYS, CHARACTER_PARTS, charLayerKey } from '../data/assetKeys.js';
+import { ASSET_KEYS, PLAYER_CHARACTER_PARTS, charLayerKey } from '../data/assetKeys.js';
 import { DEPTH, PLAYER, TILE } from '../data/gameConfig.js';
 import { AudioManager } from '../systems/AudioManager.js';
 
@@ -20,7 +20,7 @@ export class Player {
     const originY = PLAYER.FRAME_FEET_Y / PLAYER.FRAME_HEIGHT;
     this.layers = {};
 
-    for (const part of CHARACTER_PARTS) {
+    for (const part of PLAYER_CHARACTER_PARTS) {
       const sprite = scene.add
         .sprite(0, 0, charLayerKey('idle', part), 0)
         .setOrigin(0.5, originY);
@@ -102,7 +102,7 @@ export class Player {
     if (ignoreIfPlaying && this.currentAction === action) return;
     this.currentAction = action;
 
-    for (const part of CHARACTER_PARTS) {
+    for (const part of PLAYER_CHARACTER_PARTS) {
       const animKey = `${charLayerKey(action, part)}_anim`;
       const sprite = this.layers[part];
       if (!sprite || !sprite.anims || !sprite.scene) continue;
@@ -183,7 +183,7 @@ export class Player {
 
       if (Math.abs(vx) > 0.05) {
         this.flipX = vx < 0;
-        for (const part of CHARACTER_PARTS) {
+        for (const part of PLAYER_CHARACTER_PARTS) {
           const sprite = this.layers[part];
           if (sprite && sprite.scene) sprite.setFlipX(this.flipX);
         }

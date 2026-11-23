@@ -279,6 +279,8 @@ export class TouchControls {
       }
       // Let the open inventory drawer consume touches over its own area (scroll instead of move)
       if (this.scene?.isPointerOverStorageDrawer?.(pointer)) return;
+      // Dialog aktif: jangan aktifkan joystick; tombol AKSI/ALAT/BIBIT tetap punya hit zone sendiri.
+      if (this.scene?.dialogueBox?.isOpen) return;
 
       const w = this.viewWidth;
       const h = this.viewHeight;
