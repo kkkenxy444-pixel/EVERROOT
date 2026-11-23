@@ -14,6 +14,7 @@ import {
   TOOL_IDS,
   TOOLS,
 } from '../data/items.js';
+import { sanitizeQuestState } from '../data/quests.js';
 import { eventBus, EVENTS } from './EventBus.js';
 import { InventorySystem } from './InventorySystem.js';
 
@@ -123,6 +124,8 @@ class SaveSystemClass {
       farmPlots: {},
       // Optional Paket 2b field: per-animal lastCollectedDay (empty = all ready)
       livestock: {},
+      // Optional Fase 4 field: quest id -> 'aktif' | 'selesai' (empty = none taken)
+      quests: {},
     };
   }
 
@@ -314,6 +317,9 @@ class SaveSystemClass {
         }
       }
 
+      // Optional quest field: old saves without it stay empty (status derived from day)
+      const quests = sanitizeQuestState(parsed.quests);
+
       return {
         version: SAVE.VERSION,
         savedAt: Number.isFinite(parsed.savedAt) ? parsed.savedAt : Date.now(),
@@ -333,6 +339,7 @@ class SaveSystemClass {
         inventory,
         farmPlots,
         livestock,
+        quests,
       };
     } catch {
       this.lastLoadRecoveredFromCorruption = true;

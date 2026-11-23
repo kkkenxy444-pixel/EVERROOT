@@ -35,6 +35,29 @@ export class DialogueSystem {
     );
     if (picked.length === 0) return false;
 
+    this._begin(npc, picked);
+    return true;
+  }
+
+  /**
+   * Menampilkan rangkaian kalimat yang sudah disiapkan (mis. dialog quest).
+   * `lines` = `[{ id, text }]`. Tidak memakai pemilih acak maupun filter cuaca.
+   */
+  startWithLines(npc, lines) {
+    if (this.isActive || !npc || !Array.isArray(lines)) return false;
+    const picked = lines
+      .filter((line) => line && typeof line.text === 'string' && line.text.trim())
+      .map((line, index) => ({
+        id: line.id || `custom_${npc.id}_${index}`,
+        text: line.text,
+      }));
+    if (picked.length === 0) return false;
+
+    this._begin(npc, picked);
+    return true;
+  }
+
+  _begin(npc, picked) {
     this.isActive = true;
     this.npc = npc;
     this.lines = picked;
@@ -47,7 +70,6 @@ export class DialogueSystem {
       total: picked.length,
     });
     this._emitCurrentLine();
-    return true;
   }
 
   advance() {

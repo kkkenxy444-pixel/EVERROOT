@@ -476,6 +476,11 @@ export const NPC = Object.freeze({
   DOING_MAX_DELAY_MS: 18000,
   DOING_DURATION_MS: 620,
   HINT_LABEL: 'Ngobrol',
+  // Ikon quest melayang di atas kepala NPC (dibuat sekali, hanya di-toggle)
+  QUEST_ICON_OFFSET_Y: -46,
+  QUEST_ICON_SCALE: 1.6,
+  QUEST_ICON_BOB_PX: 2.5,
+  QUEST_ICON_BOB_MS: 1800,
 });
 
 /** Pengaturan kotak dialog (UI) dan pemilihan kalimat (DialogueSystem). */

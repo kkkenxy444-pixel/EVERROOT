@@ -1,4 +1,4 @@
-import { charLayerKey } from '../data/assetKeys.js';
+import { ASSET_KEYS, charLayerKey } from '../data/assetKeys.js';
 import { DEPTH, NPC as NPC_CONFIG, PLAYER, TILE } from '../data/gameConfig.js';
 
 /**
@@ -37,6 +37,31 @@ export class NPC {
     }
     this.container.setDepth(DEPTH.Y_SORT_BASE + this.y);
 
+    // Ikon quest: dua gambar dibuat sekali, hanya di-toggle oleh GameScene.
+    // Satu tween untuk grup ikon (bukan per frame) agar melayang pelan.
+    this.questIndicator = null;
+    this.questIconGroup = scene.add.container(0, NPC_CONFIG.QUEST_ICON_OFFSET_Y);
+    this.questAvailableIcon = scene.add
+      .image(0, 0, ASSET_KEYS.ICON_CHAT)
+      .setOrigin(0.5)
+      .setScale(NPC_CONFIG.QUEST_ICON_SCALE)
+      .setVisible(false);
+    this.questReadyIcon = scene.add
+      .image(0, 0, ASSET_KEYS.ICON_LOVE)
+      .setOrigin(0.5)
+      .setScale(NPC_CONFIG.QUEST_ICON_SCALE)
+      .setVisible(false);
+    this.questIconGroup.add([this.questAvailableIcon, this.questReadyIcon]);
+    this.container.add(this.questIconGroup);
+    this._questIconTween = scene.tweens.add({
+      targets: this.questIconGroup,
+      y: NPC_CONFIG.QUEST_ICON_OFFSET_Y - NPC_CONFIG.QUEST_ICON_BOB_PX,
+      duration: NPC_CONFIG.QUEST_ICON_BOB_MS,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
+
     // Collider kecil di titik kaki agar pemain tidak menembus NPC.
     this.collider = scene.add.zone(
       this.x,
@@ -56,6 +81,18 @@ export class NPC {
 
   distanceTo(x, y) {
     return Math.hypot(this.x - x, this.y - y);
+  }
+
+  /**
+   * `'available'` menampilkan ikon ajakan bicara, `'ready'` menampilkan ikon
+   * siap diserahkan. `null` menyembunyikan keduanya. Hanya toggle, tanpa alokasi.
+   */
+  setQuestIndicator(mode) {
+    const available = mode === 'available';
+    const ready = mode === 'ready';
+    if (this.questAvailableIcon) this.questAvailableIcon.setVisible(available);
+    if (this.questReadyIcon) this.questReadyIcon.setVisible(ready);
+    this.questIndicator = available || ready ? mode : null;
   }
 
   _playLayers(action) {
@@ -110,6 +147,18 @@ export class NPC {
     }
 
     try {
+      if (this._questIconTween) {
+        this._questIconTween.remove();
+        this._questIconTween = null;
+      }
+      if (this.scene && this.questIconGroup) {
+        this.scene.tweens.killTweensOf(this.questIconGroup);
+      }
+    } catch {
+      // tween manager may already be shutting down
+    }
+
+    try {
       if (this.collider && this.collider.scene) this.collider.destroy();
     } catch {
       // DisplayList may have destroyed it first
@@ -123,6 +172,10 @@ export class NPC {
     }
     this.container = null;
     this.layers = null;
+    this.questIndicator = null;
+    this.questIconGroup = null;
+    this.questAvailableIcon = null;
+    this.questReadyIcon = null;
     this.scene = null;
   }
 }

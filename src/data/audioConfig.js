@@ -121,5 +121,7 @@ export const AUDIO_CONFIG = Object.freeze({
       detuneJitter: 25,
       maxInstances: 1,
     },
+    // Quest selesai: jingle sosial, satu instance agar tidak menumpuk
+    [ASSET_KEYS.SFX_QUEST_COMPLETE]: { volume: 0.55, maxInstances: 1 },
   }),
 });

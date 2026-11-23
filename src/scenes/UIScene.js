@@ -47,6 +47,7 @@ export class UIScene extends Phaser.Scene {
     this._currentToast = '';
     this.weatherRaining = false;
     this._lastTimeSnapshot = null;
+    this._currentQuestTracker = '';
     this._lastCoins = this.gameScene?.gameState?.coins ?? null;
 
     this._buildHudElements();
@@ -175,6 +176,20 @@ export class UIScene extends Phaser.Scene {
         })
       )
       .setOrigin(0, 0.5);
+
+    // Satu baris tracker quest tepat di bawah bar waktu (font kecil, tanpa panel).
+    this.questText = this.add
+      .text(
+        2 * s,
+        barH + 3 * s,
+        this._currentQuestTracker,
+        pixelTextStyle(fontSmall, '#ffe8a3', {
+          stroke: '#120b07',
+          strokeThickness: strokePx,
+        })
+      )
+      .setOrigin(0, 0)
+      .setVisible(Boolean(this._currentQuestTracker));
 
     // Crisp pixel coin icon + Coin counter
     const coinX = 172 * s;
@@ -361,6 +376,7 @@ export class UIScene extends Phaser.Scene {
       bar,
       clockIcon,
       this.timeText,
+      this.questText,
       coinGfx,
       this.coinText,
       this.activeSeedIcon,
@@ -1139,6 +1155,7 @@ export class UIScene extends Phaser.Scene {
     const seedId = gs.selectedSeedId || SEED_ITEM_IDS[0];
     this._updateSeedDisplay(seedId, gs.inventory?.[seedId] ?? 0);
     this._updateStorageDisplay(gs.inventory || {}, gs.inventorySlots || []);
+    this._updateQuestTracker(this.gameScene?.questSystem?.getTrackerText() || null);
   }
 
   _updateSeedDisplay(seedId, stockCount) {
@@ -1204,6 +1221,30 @@ export class UIScene extends Phaser.Scene {
     if (gs) {
       const seedId = gs.selectedSeedId || SEED_ITEM_IDS[0];
       this._updateSeedDisplay(seedId, inv[seedId] || 0);
+    }
+  }
+
+  _updateQuestTracker(text) {
+    this._currentQuestTracker = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!this.questText) return;
+
+    this.questText.setText(this._currentQuestTracker);
+    this.questText.setVisible(Boolean(this._currentQuestTracker));
+    if (!this._currentQuestTracker) return;
+
+    const s = this.uiScale || 1;
+    const F = UI.FONT || {};
+    const basePx = Math.max(
+      F.MIN_HUD_SMALL_PX || 22,
+      Math.round((F.HUD_SMALL || 12) * s)
+    );
+    this.questText.setFontSize(basePx);
+
+    const maxW = this.viewWidth - UI.SAFE_MARGIN_X * 2 * s - 8 * s;
+    if (maxW > 0 && this.questText.width > maxW) {
+      this.questText.setFontSize(
+        Math.max(16, Math.floor((basePx * maxW) / this.questText.width))
+      );
     }
   }
 
@@ -1371,6 +1412,18 @@ export class UIScene extends Phaser.Scene {
         this.shopModal.close(false);
       }
     };
+    this._onQuestStateChanged = (payload) => {
+      this._updateQuestTracker(payload?.trackerText || null);
+    };
+    this._onQuestCompleted = (payload) => {
+      const reward = Math.max(0, Math.floor(Number(payload?.rewardCoins) || 0));
+      this._spawnFloatingText(
+        this.viewWidth / 2,
+        this.viewHeight * 0.42,
+        `Quest selesai! +${reward}G`,
+        '#ffd866'
+      );
+    };
     this._onResize = (gameSize) => {
       const w = gameSize?.width || this.scale?.width || GAME.WIDTH;
       const h = gameSize?.height || this.scale?.height || GAME.HEIGHT;
@@ -1412,6 +1465,8 @@ export class UIScene extends Phaser.Scene {
     eventBus.on(EVENTS.OPEN_SHOP, this._onOpenShop);
     eventBus.on(EVENTS.CLOSE_SHOP, this._onCloseShop);
     eventBus.on(EVENTS.CLOSE_UI_PANELS, this._onCloseUiPanels);
+    eventBus.on(EVENTS.QUEST_STATE_CHANGED, this._onQuestStateChanged);
+    eventBus.on(EVENTS.QUEST_COMPLETED, this._onQuestCompleted);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -1430,6 +1485,8 @@ export class UIScene extends Phaser.Scene {
       eventBus.off(EVENTS.OPEN_SHOP, this._onOpenShop);
       eventBus.off(EVENTS.CLOSE_SHOP, this._onCloseShop);
       eventBus.off(EVENTS.CLOSE_UI_PANELS, this._onCloseUiPanels);
+      eventBus.off(EVENTS.QUEST_STATE_CHANGED, this._onQuestStateChanged);
+      eventBus.off(EVENTS.QUEST_COMPLETED, this._onQuestCompleted);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
       if (this.input) {
         this.input.off('pointermove', this._onDrawerPointerMove);

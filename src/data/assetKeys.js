@@ -23,6 +23,7 @@ export const ASSET_KEYS = Object.freeze({
   ICON_ARROW_UP: 'icon_arrow_up',
   ICON_ITEMDISC: 'icon_itemdisc',
   ICON_ALERTED: 'icon_alerted',
+  ICON_CHAT: 'icon_chat',
   ICON_LOVE: 'icon_love',
   ICON_WORKING: 'icon_working',
   ICON_STOPWATCH: 'icon_stopwatch',
@@ -109,6 +110,7 @@ export const ASSET_KEYS = Object.freeze({
   SFX_ANIMAL_CHICKEN: 'sfx_animal_chicken',
   SFX_ANIMAL_COW: 'sfx_animal_cow',
   SFX_DIALOGUE_BLIP: 'sfx_dialogue_blip',
+  SFX_QUEST_COMPLETE: 'sfx_quest_complete',
 });
 
 /**
@@ -147,6 +149,7 @@ export const IMAGE_ASSETS = Object.freeze([
   { key: ASSET_KEYS.ICON_ARROW_UP, path: 'ui/icons/arrow_up.png', width: 10, height: 13 },
   { key: ASSET_KEYS.ICON_ITEMDISC, path: 'ui/icons/itemdisc_01.png', width: 18, height: 19 },
   { key: ASSET_KEYS.ICON_ALERTED, path: 'ui/icons/expression_alerted.png', width: 4, height: 9 },
+  { key: ASSET_KEYS.ICON_CHAT, path: 'ui/icons/expression_chat.png', width: 9, height: 9 },
   { key: ASSET_KEYS.ICON_LOVE, path: 'ui/icons/expression_love.png', width: 9, height: 8 },
   { key: ASSET_KEYS.ICON_WORKING, path: 'ui/icons/expression_working.png', width: 7, height: 9 },
   { key: ASSET_KEYS.ICON_STOPWATCH, path: 'ui/icons/stopwatch.png', width: 10, height: 12 },
@@ -470,4 +473,5 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.SFX_ANIMAL_CHICKEN, path: 'audio/sfx/animals/farm_chicken_cluck.ogg' },
   { key: ASSET_KEYS.SFX_ANIMAL_COW, path: 'audio/sfx/animals/farm_cow_moo.ogg' },
   { key: ASSET_KEYS.SFX_DIALOGUE_BLIP, path: 'audio/sfx/social/farm_dialogue_blip_01.ogg' },
+  { key: ASSET_KEYS.SFX_QUEST_COMPLETE, path: 'audio/sfx/social/farm_quest_complete.ogg' },
 ]);

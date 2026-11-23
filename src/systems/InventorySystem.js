@@ -322,6 +322,66 @@ export class InventorySystem {
     return { ok: true, removed: qty };
   }
 
+  /**
+   * Serah terima quest secara atomik: mengurangi `amount` item dan menambah
+   * `coins` dalam satu langkah, lalu memancarkan satu pembaruan state + save.
+   * Jika item kurang, tidak ada yang berubah. Tidak menambah item apa pun,
+   * jadi tas penuh tidak menghalangi hadiah koin.
+   * `options.save = false` menunda save agar pemanggil bisa menyimpan sekali
+   * setelah status quest ikut berubah (tidak ada save di tengah transaksi).
+   */
+  takeItemsAndAddCoins(itemId, amount, coins, options = {}) {
+    const qty = Math.floor(Number(amount) || 0);
+    const reward = Math.max(0, Math.floor(Number(coins) || 0));
+    const itemDef = ITEMS[itemId];
+    const slots = this.gameState?.inventorySlots;
+    let available = 0;
+    if (Array.isArray(slots)) {
+      for (const slot of slots) {
+        if (slot && slot.itemId === itemId) {
+          available += Math.max(0, Math.floor(Number(slot.count) || 0));
+        }
+      }
+    }
+
+    if (!itemDef || qty <= 0 || !Array.isArray(slots) || available < qty) {
+      return { ok: false, reason: 'insufficient_items', removed: 0, coins: 0 };
+    }
+
+    let remaining = qty;
+    for (let i = slots.length - 1; i >= 0 && remaining > 0; i--) {
+      const slot = slots[i];
+      if (slot && slot.itemId === itemId) {
+        const take = Math.min(remaining, slot.count);
+        slot.count -= take;
+        remaining -= take;
+        if (slot.count <= 0) {
+          slots[i] = null;
+        }
+      }
+    }
+
+    if (remaining > 0) {
+      // Tidak mungkin terjadi karena jumlah slot sudah dicek di atas, tetapi
+      // jangan pernah memberikan koin tanpa barang yang benar-benar terpotong.
+      return { ok: false, reason: 'remove_failed', removed: 0, coins: 0 };
+    }
+
+    this._syncSummaryMap();
+    this.ensureValidSelectedSeed();
+    this.gameState.coins = Math.max(0, (this.gameState.coins || 0) + reward);
+
+    eventBus.emit(
+      EVENTS.INVENTORY_UPDATED,
+      this.gameState.inventory,
+      this.gameState.inventorySlots
+    );
+    eventBus.emit(EVENTS.COINS_CHANGED, this.gameState.coins);
+
+    if (options.save !== false && this.onStateChanged) this.onStateChanged();
+    return { ok: true, removed: qty, coins: reward };
+  }
+
   getCurrentDay() {
     return Math.max(1, Math.floor(Number(this.gameState?.day) || 1));
   }

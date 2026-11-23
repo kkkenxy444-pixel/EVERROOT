@@ -43,6 +43,10 @@ export const EVENTS = Object.freeze({
   DIALOGUE_LINE: 'dialogue:line',
   DIALOGUE_ENDED: 'dialogue:ended',
 
+  // Village Quests
+  QUEST_STATE_CHANGED: 'quest:state_changed',
+  QUEST_COMPLETED: 'quest:completed',
+
   // Time & Sleep / Save
   TIME_UPDATED: 'time:updated',
   PHASE_CHANGED: 'time:phase_changed',

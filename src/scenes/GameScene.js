@@ -33,6 +33,7 @@ import { FishingSystem } from '../systems/FishingSystem.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { LivestockSystem } from '../systems/LivestockSystem.js';
+import { QuestSystem } from '../systems/QuestSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
@@ -91,6 +92,19 @@ export class GameScene extends Phaser.Scene {
     this.inventorySystem = new InventorySystem(this.gameState, () =>
       this._saveCurrentState()
     );
+
+    // 2b. Village quests (no Phaser inside the system; trade is one atomic step)
+    this.questSystem = new QuestSystem(this.gameState, {
+      getItemCount: (itemId) => this.inventorySystem.getCount(itemId),
+      getDay: () => this.gameState?.day || 1,
+      // Save ditunda: satu save setelah status quest juga menjadi `selesai`.
+      performTrade: (itemId, amount, coins) =>
+        this.inventorySystem.takeItemsAndAddCoins(itemId, amount, coins, {
+          save: false,
+        }),
+      onChanged: () => this._refreshQuestState(),
+      onCompleted: (payload) => this._onQuestCompleted(payload),
+    });
 
     // 3. Build the current map, spawn the player, and create map-local systems
     const savedSpawn = this._getSavedSpawnTile(this.currentMapId);
@@ -302,6 +316,9 @@ export class GameScene extends Phaser.Scene {
     const h = this.scale?.height || GAME.HEIGHT;
     this._updateCameraAndOverlay(w, h);
     this._applyCameraFollow();
+
+    // NPC quest icons/tracker follow the map that was just built
+    this._refreshQuestState();
   }
 
   /**
@@ -656,6 +673,12 @@ export class GameScene extends Phaser.Scene {
     };
     this._onDayAdvancedLivestock = () => {
       this._refreshLivestockVisuals();
+      this._refreshQuestState();
+    };
+    // Progres quest dihitung dari inventory, jadi ikon "siap" dan tracker ikut
+    // berubah begitu barang masuk/keluar tanpa menunggu ganti map.
+    this._onInventoryForQuests = () => {
+      this._refreshQuestState();
     };
     this._onDialogueStarted = () => {
       this.isDialogActive = true;
@@ -701,6 +724,7 @@ export class GameScene extends Phaser.Scene {
     eventBus.on(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
     eventBus.on(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
     eventBus.on(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
+    eventBus.on(EVENTS.INVENTORY_UPDATED, this._onInventoryForQuests);
     eventBus.on(EVENTS.DIALOGUE_STARTED, this._onDialogueStarted);
     eventBus.on(EVENTS.DIALOGUE_ENDED, this._onDialogueEnded);
     this.scale.on(Phaser.Scale.Events.RESIZE, this._onResize);
@@ -748,6 +772,7 @@ export class GameScene extends Phaser.Scene {
       eventBus.off(EVENTS.DEBUG_NEXT_DAY, this._onDebugNextDay);
       eventBus.off(EVENTS.WEATHER_CHANGED, this._onWeatherChanged);
       eventBus.off(EVENTS.DAY_ADVANCED, this._onDayAdvancedLivestock);
+      eventBus.off(EVENTS.INVENTORY_UPDATED, this._onInventoryForQuests);
       eventBus.off(EVENTS.DIALOGUE_STARTED, this._onDialogueStarted);
       eventBus.off(EVENTS.DIALOGUE_ENDED, this._onDialogueEnded);
       this.scale.off(Phaser.Scale.Events.RESIZE, this._onResize);
@@ -798,6 +823,7 @@ export class GameScene extends Phaser.Scene {
         this.ambientAnimals = [];
       }
       this.player = null;
+      this.questSystem = null;
     });
   }
 
@@ -1143,6 +1169,43 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Menyegarkan ikon quest di atas NPC dan satu baris tracker HUD.
+   * Dipanggil setelah map dibangun, saat status quest berubah, dan saat hari baru.
+   */
+  _refreshQuestState() {
+    if (this.worldBuilder && Array.isArray(this.worldBuilder.npcs)) {
+      for (const npc of this.worldBuilder.npcs) {
+        if (!npc || typeof npc.setQuestIndicator !== 'function') continue;
+        npc.setQuestIndicator(
+          this.questSystem ? this.questSystem.getNpcIndicator(npc.id) : null
+        );
+      }
+    }
+
+    const trackerText = this.questSystem
+      ? this.questSystem.getTrackerText()
+      : null;
+    eventBus.emit(EVENTS.QUEST_STATE_CHANGED, { trackerText });
+  }
+
+  _onQuestCompleted({ quest, rewardCoins } = {}) {
+    if (!quest) return;
+    AudioManager.playSfx(ASSET_KEYS.SFX_QUEST_COMPLETE);
+    eventBus.emit(EVENTS.QUEST_COMPLETED, {
+      questId: quest.id,
+      title: quest.title,
+      rewardCoins,
+    });
+    eventBus.emit(
+      EVENTS.TOAST_MESSAGE,
+      `Quest selesai: ${quest.title} (+${rewardCoins}G)`
+    );
+    // PerformTrade sengaja menunda save; simpan sekali setelah status quest
+    // menjadi `selesai` agar tidak ada save di tengah serah terima.
+    this._saveCurrentState();
+  }
+
   _saveCurrentState() {
     if (!this.gameState || !this.player || !this.player.container) return;
     try {
@@ -1273,6 +1336,17 @@ export class GameScene extends Phaser.Scene {
       this.player.y
     );
     if (nearbyNpc) {
+      const questResult = this.questSystem
+        ? this.questSystem.talkTo(nearbyNpc.id)
+        : { kind: 'none' };
+      if (
+        questResult.kind !== 'none' &&
+        Array.isArray(questResult.lines) &&
+        questResult.lines.length > 0
+      ) {
+        this.dialogueSystem.startWithLines(nearbyNpc, questResult.lines);
+        return;
+      }
       if (this.dialogueSystem) this.dialogueSystem.start(nearbyNpc);
       return;
     }
