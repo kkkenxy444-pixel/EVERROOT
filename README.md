@@ -136,7 +136,7 @@ EVERROOT/
 
 ## 6. Catatan Lisensi Aset (PENTING — Jangan Disebar Publik)
 
-- Seluruh aset di dalam `public/assets/` berasal dari paket `GAME_ASSETS_MASTER_PHASER3_V5_WITH_ICON_ORIGINAL.zip` (lihat `public/assets/SOURCE_RIGHTS_NOTES.txt`).
+- Seluruh aset di dalam `public/assets/` berasal dari paket `GAME_ASSETS_MASTER_PHASER3_V5_WITH_ICON_ORIGINAL.zip` yang bersama folder `assets/` sumber disimpan di luar repo (`~/GAMEDEV/backup/`; lihat `public/assets/SOURCE_RIGHTS_NOTES.txt`).
 - **JANGAN** mengunggah atau menyebarkan folder `public/assets/` maupun file ZIP aset ke repositori publik (GitHub publik, itch.io publik, dsb.) tanpa memastikan lisensi distribusi masing-masing pembuat aset.
 - Dua sheet furnitur interior (`furnipixel_free.png` dan `interior_furniture_2d.png`) sengaja **tidak digunakan** di V1 karena catatan lisensinya belum terverifikasi di `SOURCE_RIGHTS_NOTES.txt`.
 
