@@ -82,7 +82,7 @@ npm run preview -- --host  # port 4173
 
 ## 6. Gotchas
 - **Freeze Phaser 3.90**: `stop(GAME)` menghancurkan sprite player; `FishingSystem.destroy()` → `unlockAction()` → `play()` error. Jangan sentuh GameObject di SHUTDOWN; pakai guard + `try/catch`.
-- **`stream.wav` dimatikan** (siang/sore `null`): noise floor tinggi + loop kanan melompat.
+- **Audio preload 12.42 MB** (turun dari 33.18 MB): 3 audio tak terpakai dilepas (`bgm_workshop`, `bgm_party`, `amb_stream`), 4 loop dikonversi mono 22kHz 16-bit, 4 one-shot ke OGG; file asli tetap utuh di disk. `stream.wav` dimatikan di runtime (noise floor tinggi + loop meloncat).
 - **Tint**: `fillAlpha = 1`, alpha lewat `GameObject.setAlpha()`; jangan kalikan dua kali.
 - **Strip hewan menghadap kiri** di frame 0; `facesRight: false`. Jangan asal flip.
 - **Game baru hanya parsnip + carrot**; sunflower Hari 10, pumpkin Hari 14. Bibit terkunci tetap di tas tetapi tak bisa dipilih/ditanam.
@@ -125,3 +125,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-22 | `1ac1d61` | Desa struktur Sunnyside |
 | 2026-11-23 | `c962c0e` | Desa fase 3: dialog + 3 NPC |
 | 2026-11-23 | `7e4ae4c` | Desa fase 4: quest kecil |
+| 2026-11-24 | `0d0cb5f`,`b340f62` | Optimasi audio preload (33.18 MB → 12.42 MB) |
