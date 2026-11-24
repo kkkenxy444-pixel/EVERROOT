@@ -420,18 +420,15 @@ export const SPRITESHEET_ASSETS = Object.freeze([
 
 /** Audio assets loaded via `this.load.audio(key, path)`. */
 export const AUDIO_ASSETS = Object.freeze([
-  // BGM tracks (all 5 tracks in bundle registered)
+  // BGM tracks (3 active; BGM_WORKSHOP & BGM_PARTY cadangan V2, dilepas dari preload)
   { key: ASSET_KEYS.BGM_MENU, path: 'audio/bgm/week_29_-_heart-shaped_candy.ogg' },
   { key: ASSET_KEYS.BGM_FARM_DAY, path: 'audio/bgm/week_23_-_workshop_breadboard.ogg' },
   { key: ASSET_KEYS.BGM_COZY_ALT, path: 'audio/bgm/week_29_-_heart-shaped_palpatations.ogg' },
-  { key: ASSET_KEYS.BGM_WORKSHOP, path: 'audio/bgm/week_17_-_alley_cat_dumpster_divin.ogg' },
-  { key: ASSET_KEYS.BGM_PARTY, path: 'audio/bgm/week_17_-_alley_cat_dumpster_party.ogg' },
 
-  // Ambience
+  // Ambience (AMB_STREAM dilepas dari preload — disabled noisy)
   { key: ASSET_KEYS.AMB_MORNING_BIRDS, path: 'audio/ambience/morning-birds.wav' },
   { key: ASSET_KEYS.AMB_DAY_CICADA, path: 'audio/ambience/plains_12_cicada_loop.wav' },
   { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, path: 'audio/ambience/night-crickets.wav' },
-  { key: ASSET_KEYS.AMB_STREAM, path: 'audio/ambience/stream.wav' },
   { key: ASSET_KEYS.AMB_RAIN, path: 'audio/ambience/rain.wav' },
 
   // UI & Movement SFX
