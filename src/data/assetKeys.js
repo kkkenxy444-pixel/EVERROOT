@@ -425,17 +425,17 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.BGM_FARM_DAY, path: 'audio/bgm/week_23_-_workshop_breadboard.ogg' },
   { key: ASSET_KEYS.BGM_COZY_ALT, path: 'audio/bgm/week_29_-_heart-shaped_palpatations.ogg' },
 
-  // Ambience (AMB_STREAM dilepas dari preload — disabled noisy)
-  { key: ASSET_KEYS.AMB_MORNING_BIRDS, path: 'audio/ambience/morning-birds.wav' },
-  { key: ASSET_KEYS.AMB_DAY_CICADA, path: 'audio/ambience/plains_12_cicada_loop.wav' },
-  { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, path: 'audio/ambience/night-crickets.wav' },
-  { key: ASSET_KEYS.AMB_RAIN, path: 'audio/ambience/rain.wav' },
+  // Ambience (converted to mono 22k wav)
+  { key: ASSET_KEYS.AMB_MORNING_BIRDS, path: 'audio/ambience/morning-birds_22k.wav' },
+  { key: ASSET_KEYS.AMB_DAY_CICADA, path: 'audio/ambience/plains_12_cicada_loop_22k.wav' },
+  { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, path: 'audio/ambience/night-crickets_22k.wav' },
+  { key: ASSET_KEYS.AMB_RAIN, path: 'audio/ambience/rain_22k.wav' },
 
   // UI & Movement SFX
   { key: ASSET_KEYS.SFX_UI_SELECT, path: 'audio/sfx/ui/select_1.wav' },
   { key: ASSET_KEYS.SFX_UI_BLIP, path: 'audio/sfx/ui/menu_blip.wav' },
   { key: ASSET_KEYS.SFX_UI_CANCEL, path: 'audio/sfx/ui/cancel.wav' },
-  { key: ASSET_KEYS.SFX_UI_ERROR, path: 'audio/sfx/ui/synth_error.wav' },
+  { key: ASSET_KEYS.SFX_UI_ERROR, path: 'audio/sfx/ui/synth_error_opt.ogg' },
   { key: ASSET_KEYS.SFX_UI_MENU_OPEN, path: 'audio/sfx/ui/farm_menu_open.ogg' },
   { key: ASSET_KEYS.SFX_UI_NOTIFY, path: 'audio/sfx/ui/life_notification_01.ogg' },
   { key: ASSET_KEYS.SFX_STEP_GRASS, path: 'audio/sfx/movement/digital_footstep_grass_1.wav' },
@@ -460,12 +460,12 @@ export const AUDIO_ASSETS = Object.freeze([
   // Shop / Economy / Home / Jingles SFX
   { key: ASSET_KEYS.SFX_BUY_CONFIRM, path: 'audio/sfx/shop/life_buy_confirm_01.ogg' },
   { key: ASSET_KEYS.SFX_CASH_REGISTER, path: 'audio/sfx/shop/life_cash_register_01.ogg' },
-  { key: ASSET_KEYS.SFX_COIN_COLLECT, path: 'audio/sfx/items/coin_collect.wav' },
+  { key: ASSET_KEYS.SFX_COIN_COLLECT, path: 'audio/sfx/items/coin_collect_opt.ogg' },
   { key: ASSET_KEYS.SFX_ITEM_EQUIP, path: 'audio/sfx/items/item_equip.wav' },
   { key: ASSET_KEYS.SFX_DAY_END, path: 'audio/sfx/jingles/life_day_end_01.ogg' },
   { key: ASSET_KEYS.SFX_DAY_START, path: 'audio/sfx/jingles/life_day_start_01.ogg' },
-  { key: ASSET_KEYS.SFX_DOOR_OPEN, path: 'audio/sfx/environment/door_open.wav' },
-  { key: ASSET_KEYS.SFX_DOOR_CLOSE, path: 'audio/sfx/environment/door_close.wav' },
+  { key: ASSET_KEYS.SFX_DOOR_OPEN, path: 'audio/sfx/environment/door_open_opt.ogg' },
+  { key: ASSET_KEYS.SFX_DOOR_CLOSE, path: 'audio/sfx/environment/door_close_opt.ogg' },
   { key: ASSET_KEYS.SFX_CHEST_OPEN, path: 'audio/sfx/home/life_chest_open_01.ogg' },
   { key: ASSET_KEYS.SFX_ANIMAL_CHICKEN, path: 'audio/sfx/animals/farm_chicken_cluck.ogg' },
   { key: ASSET_KEYS.SFX_ANIMAL_COW, path: 'audio/sfx/animals/farm_cow_moo.ogg' },

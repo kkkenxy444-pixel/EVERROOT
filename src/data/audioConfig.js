@@ -69,13 +69,13 @@ export const AUDIO_CONFIG = Object.freeze({
    */
   PHASE_AMBIENCE: Object.freeze({
     pagi: { key: ASSET_KEYS.AMB_MORNING_BIRDS, volume: 0.09, loop: true },
-    siang: { key: ASSET_KEYS.AMB_DAY_CICADA, volume: 0.12, loop: true },
+    siang: { key: ASSET_KEYS.AMB_DAY_CICADA, volume: 0.25, loop: true }, // kompensasi +6.4 dB konversi mono 22k
     sore: null,
-    malam: { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, volume: 0.08, loop: true },
+    malam: { key: ASSET_KEYS.AMB_NIGHT_CRICKETS, volume: 0.09, loop: true }, // kompensasi +1.1 dB konversi mono 22k
     // Rain overrides the phase ambience (cicadas/crickets fade out) while it is raining.
     hujan: {
       key: ASSET_KEYS.AMB_RAIN,
-      volume: WEATHER.RAIN_AMBIENCE_VOLUME,
+      volume: 0.12, // kompensasi +3.5 dB konversi mono 22k (basis WEATHER.RAIN_AMBIENCE_VOLUME 0.08)
       loop: true,
     },
   }),

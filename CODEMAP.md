@@ -1,6 +1,6 @@
 Dibuat otomatis oleh npm run codemap. Jangan dibaca penuh; gunakan grep -n <nama> CODEMAP.md lalu sed -n 'A,Bp' <file>.
 
-## src/data/assetKeys.js (22 KB, 478 baris)
+## src/data/assetKeys.js (22 KB, 475 baris)
 L6 ASSET_BASE_PATH
 L8 ASSET_KEYS
 L121 charLayerKey
