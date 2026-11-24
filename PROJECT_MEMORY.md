@@ -105,6 +105,7 @@ npm run preview -- --host  # port 4173
 - Pisah `scenes`/`entities`/`systems`/`ui`/`data`; komunikasi via `eventBus`.
 - Konstanta di `gameConfig.js`/`crops.js`/`items.js`/`quests.js`/`audioConfig.js`.
 - Jangan alokasi objek di `update()`; lepas listener `eventBus` saat SHUTDOWN.
+- Gunakan `CODEMAP.md` (`grep -n <nama> CODEMAP.md`) untuk navigasi baris file besar; jalankan `npm run codemap` jika fungsi berubah.
 
 ## 9. Rencana
 1. Perbaikan tint sore (19:00 lebih gelap/oranye).

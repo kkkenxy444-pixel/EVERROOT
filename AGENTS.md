@@ -45,4 +45,6 @@ Kalau ragu: fitur baru pakai `game-development`, bug pakai `systematic-debugging
 - Laporan akhir maksimal 25 baris: file yang berubah, hasil verifikasi, risiko. Jangan mengulang isi kode.
 - Jangan tulis ulang file besar untuk perubahan kecil.
 - Mulai sesi baru untuk tiap tugas.
+- Untuk mencari sesuatu di file besar: grep -n <nama> CODEMAP.md, lalu baca rentang barisnya dengan sed -n. Jangan membaca CODEMAP.md penuh.
+- Setelah menambah, memindah, atau menghapus fungsi, jalankan npm run codemap sebelum commit supaya nomor baris tidak basi.
 
