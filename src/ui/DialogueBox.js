@@ -3,6 +3,7 @@ import { DIALOGUE, UI } from '../data/gameConfig.js';
 import { AudioManager } from '../systems/AudioManager.js';
 import { eventBus, EVENTS } from '../systems/EventBus.js';
 import { pixelTextStyle } from '../systems/FontLoader.js';
+import { drawWoodPanel, UI_STYLE, WoodLabelPanel } from './UIStyle.js';
 
 /**
  * Kotak dialog NPC di UIScene (native resolution, di atas toolbar tetapi tidak
@@ -26,9 +27,20 @@ export class DialogueBox {
     this.container = uiScene.add.container(0, 0).setDepth(300).setVisible(false);
 
     this.bg = uiScene.add.graphics();
-    this.nameText = uiScene.add
-      .text(0, 0, '', this._nameStyle(s))
-      .setOrigin(0, 1);
+    this.namePanel = new WoodLabelPanel(uiScene, {
+      originX: 0,
+      originY: 1,
+      scale: s,
+      fontPx: this._fontPx(UI.FONT.DIALOGUE_NAME, UI.FONT.MIN_DIALOGUE_NAME_PX),
+      minFontPx: 18,
+      color: UI_STYLE.TEXT_GOLD,
+      padX: 8 * s,
+      padY: 3 * s,
+      radius: 5 * s,
+      borderWidth: 1.6 * s,
+      fadeInMs: 0,
+      fadeOutMs: 0,
+    });
     this.bodyText = uiScene.add
       .text(0, 0, '', this._bodyStyle(s))
       .setOrigin(0, 0);
@@ -49,7 +61,7 @@ export class DialogueBox {
 
     this.container.add([
       this.bg,
-      this.nameText,
+      this.namePanel.container,
       this.bodyText,
       this.continueText,
       this.tapZone,
@@ -83,19 +95,6 @@ export class DialogueBox {
     return Math.max(minPx || 26, Math.round(base * s));
   }
 
-  _nameStyle(s) {
-    return pixelTextStyle(
-      this._fontPx(UI.FONT.DIALOGUE_NAME, UI.FONT.MIN_DIALOGUE_NAME_PX),
-      '#ffd866',
-      {
-        stroke: '#120b07',
-        strokeThickness: Math.max(2, Math.round(1.2 * s)),
-        backgroundColor: 'rgba(59,38,24,0.97)',
-        padding: { x: 7 * s, y: 3 * s },
-      }
-    );
-  }
-
   _bodyStyle(s) {
     return pixelTextStyle(
       this._fontPx(UI.FONT.DIALOGUE_BODY, UI.FONT.MIN_DIALOGUE_BODY_PX),
@@ -123,12 +122,15 @@ export class DialogueBox {
     this.isOpen = true;
     this._npcName = payload?.name || '';
     this._openedAt = this._now();
-    this.nameText.setText(this._npcName);
+    if (this.namePanel) {
+      this.namePanel.setContent(this._npcName);
+      this.namePanel.setVisible(Boolean(this._npcName), true);
+    }
     this.container.setVisible(true);
     this.relayout(this.scene.viewWidth, this.scene.viewHeight);
 
-    if (this.scene.hintText) this.scene.hintText.setVisible(false);
-    if (this.scene.toastText) this.scene.toastText.setVisible(false);
+    if (this.scene.hintPanel) this.scene.hintPanel.setVisible(false, true);
+    if (this.scene.toastPanel) this.scene.toastPanel.setVisible(false, true);
   }
 
   _startLine(text) {
@@ -202,8 +204,8 @@ export class DialogueBox {
     this._text = '';
     this._charIndex = 0;
     this.container.setVisible(false);
-    if (this.scene.hintText) {
-      this.scene.hintText.setVisible(
+    if (this.scene.hintPanel) {
+      this.scene.hintPanel.setVisible(
         Boolean(this.scene._currentHint) &&
           !(this.scene.shopModal && this.scene.shopModal.isOpen)
       );
@@ -253,10 +255,19 @@ export class DialogueBox {
     this._drawPanel(boxW, boxH, s);
 
     const pad = DIALOGUE.BOX_PAD_UNITS * s;
-    this.nameText.setStyle(
-      this._nameStyle(s)
-    );
-    this.nameText.setPosition(-boxW / 2 + pad, -boxH / 2 - 2 * s);
+    if (this.namePanel) {
+      this.namePanel.setStyle({
+        scale: s,
+        fontPx: this._fontPx(UI.FONT.DIALOGUE_NAME, UI.FONT.MIN_DIALOGUE_NAME_PX),
+        padX: 8 * s,
+        padY: 3 * s,
+        radius: 5 * s,
+        borderWidth: 1.6 * s,
+        strokeThickness: Math.max(2, Math.round(1.2 * s)),
+      });
+      this.namePanel.setMaxWidth(boxW - pad * 2);
+      this.namePanel.setPosition(-boxW / 2 + pad, -boxH / 2 - 4 * s);
+    }
     this.bodyText.setStyle(this._bodyStyle(s));
     this.bodyText.setPosition(-boxW / 2 + pad, -boxH / 2 + pad);
     this.bodyText.setWordWrapWidth(boxW - pad * 2, true);
@@ -273,12 +284,13 @@ export class DialogueBox {
     const g = this.bg;
     const x = -boxW / 2;
     const y = -boxH / 2;
-    g.clear();
-    g.fillStyle(UI.PANEL_BG, 0.96);
-    g.fillRoundedRect(x, y, boxW, boxH, 6 * s);
-    g.lineStyle(1.8 * s, UI.PANEL_BORDER, 1);
-    g.strokeRoundedRect(x, y, boxW, boxH, 6 * s);
-    g.lineStyle(1 * s, UI.PANEL_INNER, 0.9);
+    drawWoodPanel(g, x, y, boxW, boxH, {
+      scale: s,
+      radius: 6 * s,
+      borderWidth: 1.8 * s,
+      fillAlpha: 0.96,
+    });
+    g.lineStyle(1 * s, UI.PANEL_INNER, 0.85);
     g.strokeRoundedRect(
       x + 3 * s,
       y + 3 * s,
@@ -295,13 +307,14 @@ export class DialogueBox {
     eventBus.off(EVENTS.INPUT_ACTION, this._onAction);
     this._stopTimer();
     try {
+      if (this.namePanel) this.namePanel.destroy();
       if (this.container && this.container.scene) this.container.destroy();
     } catch {
       // DisplayList may already be destroyed
     }
     this.container = null;
     this.bg = null;
-    this.nameText = null;
+    this.namePanel = null;
     this.bodyText = null;
     this.continueText = null;
     this.tapZone = null;

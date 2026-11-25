@@ -33,6 +33,7 @@ import { FishingSystem } from '../systems/FishingSystem.js';
 import { InputSystem } from '../systems/InputSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { LivestockSystem } from '../systems/LivestockSystem.js';
+import { UI_STYLE, WoodLabelPanel } from '../ui/UIStyle.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ResourceNodeSystem } from '../systems/ResourceNodeSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
@@ -587,23 +588,33 @@ export class GameScene extends Phaser.Scene {
   _createDebugStats() {
     if (!this.debugEnabled) return;
     this._lastDebugStatsAt = 0;
-    this.debugStatsText = this.add
-      .text(8, 64, '', {
-        fontFamily: GAME.FONT_FAMILY,
-        fontSize: `${UI.FONT.DEBUG_OVERLAY}px`,
-        color: UI.TEXT_COLOR,
-        backgroundColor: 'rgba(18,11,7,0.82)',
-        padding: { x: 4, y: 3 },
-        resolution: 2,
-      })
-      .setScrollFactor(0)
-      .setDepth(DEPTH.DEBUG)
-      .setOrigin(0, 0);
+    this.debugStatsPanel = new WoodLabelPanel(this, {
+      x: 8,
+      y: 64,
+      originX: 0,
+      originY: 0,
+      scrollFactor: 0,
+      depth: DEPTH.DEBUG,
+      scale: 0.85,
+      fontPx: UI.FONT.DEBUG_OVERLAY,
+      minFontPx: 10,
+      color: UI_STYLE.TEXT_CREAM,
+      resolution: 2,
+      padX: 5,
+      padY: 3,
+      radius: 4,
+      borderWidth: 1.1,
+      strokeThickness: 2,
+      fadeInMs: 0,
+      fadeOutMs: 0,
+      initialText: 'map ...',
+      visible: true,
+    });
     this._updateDebugStats(true);
   }
 
   _updateDebugStats(force = false) {
-    if (!this.debugEnabled || !this.debugStatsText) return;
+    if (!this.debugEnabled || !this.debugStatsPanel) return;
     const now = this.time.now;
     if (!force && now - this._lastDebugStatsAt < 500) return;
     this._lastDebugStatsAt = now;
@@ -614,7 +625,7 @@ export class GameScene extends Phaser.Scene {
     const timerCount =
       (this.time?._active?.length || 0) + (this.time?._pending?.length || 0);
 
-    this.debugStatsText.setText(
+    this.debugStatsPanel.setContent(
       `map ${this.currentMapId}\ndisplay ${displayCount} | static ${staticBodies}\ntween ${tweenCount} | timer ${timerCount}`
     );
   }

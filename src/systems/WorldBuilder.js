@@ -20,8 +20,8 @@ import {
   tileCoords,
   waterTileFor,
 } from '../data/tileIndex.js';
-import { pixelTextStyle } from './FontLoader.js';
 import { StructureBuilder } from './StructureBuilder.js';
+import { UI_STYLE, WoodLabelPanel } from '../ui/UIStyle.js';
 
 /**
  * Deterministic PRNG (Mulberry32) so grass speckles, flowers, and pebble placement
@@ -960,25 +960,32 @@ export class WorldBuilder {
       }
     }
 
-    // Small sign label above door (hidden until player is nearby)
+    // Small wood sign label above door (hidden until player is nearby)
     const labelFontPx = UI.FONT?.WORLD_LABEL || 9;
     this.landmarkLabels.sleep = this._track(
-      this.scene.add
-        .text(
-          hz.DOOR_TILE_X * TILE.SIZE + 8,
-          (hz.DOOR_TILE_Y - 0.25) * TILE.SIZE,
-          'Rumah (Tidur)',
-          pixelTextStyle(labelFontPx, '#fff6e0', {
-            resolution: 3,
-            stroke: '#120b07',
-            strokeThickness: 2,
-            backgroundColor: 'rgba(18,11,7,0.88)',
-            padding: { x: 4, y: 2 },
-          })
-        )
-        .setOrigin(0.5, 1)
-        .setDepth(DEPTH.WORLD_PROMPT)
-        .setVisible(false)
+      new WoodLabelPanel(this.scene, {
+        x: hz.DOOR_TILE_X * TILE.SIZE + 8,
+        y: (hz.DOOR_TILE_Y - 0.25) * TILE.SIZE,
+        originX: 0.5,
+        originY: 1,
+        depth: DEPTH.WORLD_PROMPT,
+        scale: 0.45,
+        fontPx: labelFontPx,
+        minFontPx: 8,
+        color: UI_STYLE.TEXT_CREAM,
+        resolution: 3,
+        padX: 4,
+        padY: 2,
+        radius: 2.5,
+        borderWidth: 0.9,
+        rimPad: 0.6,
+        shadowOffsetY: 1,
+        strokeThickness: 2,
+        fadeInMs: 0,
+        fadeOutMs: 0,
+        initialText: 'Rumah (Tidur)',
+        visible: false,
+      })
     );
   }
 
@@ -1008,22 +1015,29 @@ export class WorldBuilder {
     this.blockedTiles.add(`${sb.TILE_X},${sb.TILE_Y}`);
 
     this.landmarkLabels.sell = this._track(
-      this.scene.add
-        .text(
-          sbX,
-          sbY - 20,
-          'Jual Panen',
-          pixelTextStyle(labelFontPx, '#ffd866', {
-            resolution: 3,
-            stroke: '#120b07',
-            strokeThickness: 2,
-            backgroundColor: 'rgba(18,11,7,0.88)',
-            padding: { x: 4, y: 2 },
-          })
-        )
-        .setOrigin(0.5, 1)
-        .setDepth(DEPTH.WORLD_PROMPT)
-        .setVisible(false)
+      new WoodLabelPanel(this.scene, {
+        x: sbX,
+        y: sbY - 20,
+        originX: 0.5,
+        originY: 1,
+        depth: DEPTH.WORLD_PROMPT,
+        scale: 0.45,
+        fontPx: labelFontPx,
+        minFontPx: 8,
+        color: UI_STYLE.TEXT_GOLD,
+        resolution: 3,
+        padX: 4,
+        padY: 2,
+        radius: 2.5,
+        borderWidth: 0.9,
+        rimPad: 0.6,
+        shadowOffsetY: 1,
+        strokeThickness: 2,
+        fadeInMs: 0,
+        fadeOutMs: 0,
+        initialText: 'Jual Panen',
+        visible: false,
+      })
     );
 
     // Seed Stall next to Shipping Box (`MAP_ZONES.SEED_STALL`)
@@ -1061,22 +1075,29 @@ export class WorldBuilder {
     );
 
     this.landmarkLabels.shop = this._track(
-      this.scene.add
-        .text(
-          stallX,
-          stallY - 25,
-          'Kios Bibit',
-          pixelTextStyle(labelFontPx, '#a8f0a0', {
-            resolution: 3,
-            stroke: '#120b07',
-            strokeThickness: 2,
-            backgroundColor: 'rgba(18,11,7,0.88)',
-            padding: { x: 4, y: 2 },
-          })
-        )
-        .setOrigin(0.5, 1)
-        .setDepth(DEPTH.WORLD_PROMPT)
-        .setVisible(false)
+      new WoodLabelPanel(this.scene, {
+        x: stallX,
+        y: stallY - 25,
+        originX: 0.5,
+        originY: 1,
+        depth: DEPTH.WORLD_PROMPT,
+        scale: 0.45,
+        fontPx: labelFontPx,
+        minFontPx: 8,
+        color: UI_STYLE.TEXT_GAIN,
+        resolution: 3,
+        padX: 4,
+        padY: 2,
+        radius: 2.5,
+        borderWidth: 0.9,
+        rimPad: 0.6,
+        shadowOffsetY: 1,
+        strokeThickness: 2,
+        fadeInMs: 0,
+        fadeOutMs: 0,
+        initialText: 'Kios Bibit',
+        visible: false,
+      })
     );
 
     this._addTileCollider(st.TILE_X, st.TILE_Y, 15, 12);

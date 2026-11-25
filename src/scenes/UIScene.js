@@ -16,6 +16,12 @@ import { pixelTextStyle } from '../systems/FontLoader.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { ShopModal } from '../ui/ShopModal.js';
 import { TouchControls } from '../ui/TouchControls.js';
+import {
+  drawWoodPanel,
+  FloatingTextPool,
+  UI_STYLE,
+  WoodLabelPanel,
+} from '../ui/UIStyle.js';
 
 /**
  * UIScene: Parallel overlay scene rendered at native physical screen resolution
@@ -44,6 +50,8 @@ export class UIScene extends Phaser.Scene {
     this.audioOpen = false;
     this._leavingScene = false;
     this._currentHint = '';
+    this._currentHintIcon = null;
+    this._currentHintIconTint = null;
     this._currentToast = '';
     this.weatherRaining = false;
     this._lastTimeSnapshot = null;
@@ -104,10 +112,35 @@ export class UIScene extends Phaser.Scene {
       this._debugAudioTimer.remove(false);
       this._debugAudioTimer = null;
     }
+    if (this.floatingPool) {
+      this.floatingPool.destroy();
+      this.floatingPool = null;
+    }
+    if (this.hintPanel) {
+      this.hintPanel.destroy();
+      this.hintPanel = null;
+    }
+    if (this.toastPanel) {
+      this.toastPanel.destroy();
+      this.toastPanel = null;
+    }
+    if (this.questPanel) {
+      this.questPanel.destroy();
+      this.questPanel = null;
+    }
+    if (this.debugAudioPanel) {
+      this.debugAudioPanel.destroy();
+      this.debugAudioPanel = null;
+    }
     if (this.hudRoot) {
       this.hudRoot.destroy(true);
     }
     this.hudRoot = this.add.container(0, 0).setDepth(100);
+    this.floatingPool = new FloatingTextPool(this, {
+      uiScale: this.uiScale,
+      depth: 420,
+      poolSize: 8,
+    });
 
     const s = this.uiScale;
     const F = UI.FONT || {};
@@ -177,19 +210,25 @@ export class UIScene extends Phaser.Scene {
       )
       .setOrigin(0, 0.5);
 
-    // Satu baris tracker quest tepat di bawah bar waktu (font kecil, tanpa panel).
-    this.questText = this.add
-      .text(
-        2 * s,
-        barH + 3 * s,
-        this._currentQuestTracker,
-        pixelTextStyle(fontSmall, '#ffe8a3', {
-          stroke: '#120b07',
-          strokeThickness: strokePx,
-        })
-      )
-      .setOrigin(0, 0)
-      .setVisible(Boolean(this._currentQuestTracker));
+    // Satu baris tracker quest tepat di bawah bar waktu memakai panel kayu HUD seragam.
+    this.questPanel = new WoodLabelPanel(this, {
+      x: 0,
+      y: barH + 4 * s,
+      originX: 0,
+      originY: 0,
+      scale: s,
+      fontPx: fontSmall,
+      minFontPx: 16,
+      color: UI_STYLE.TEXT_QUEST,
+      padX: 6 * s,
+      padY: 2.5 * s,
+      radius: 4 * s,
+      borderWidth: 1.3 * s,
+      fadeInMs: 120,
+      fadeOutMs: 150,
+      initialText: this._currentQuestTracker,
+      visible: Boolean(this._currentQuestTracker),
+    });
 
     // Crisp pixel coin icon + Coin counter
     const coinX = 172 * s;
@@ -376,7 +415,7 @@ export class UIScene extends Phaser.Scene {
       bar,
       clockIcon,
       this.timeText,
-      this.questText,
+      this.questPanel.container,
       coinGfx,
       this.coinText,
       this.activeSeedIcon,
@@ -578,60 +617,60 @@ export class UIScene extends Phaser.Scene {
 
     this._highlightToolSlot(this.gameScene?.toolIndex ?? 0);
 
-    // --- 4. Single-Line Interaction Hint (above toolbar) & Single-Line Top-Center Toast ---
-    this.hintText = this.add
-      .text(
-        0,
-        0,
-        this._currentHint,
-        pixelTextStyle(fontHint, '#ffd866', {
-          stroke: '#120b07',
-          strokeThickness: strokePx,
-          backgroundColor: 'rgba(18,11,7,0.88)',
-          padding: { x: 6 * s, y: 3 * s },
-        })
-      )
-      .setOrigin(0.5)
-      .setVisible(Boolean(this._currentHint));
+    // --- 4. Uniform Wood Interaction Hint (above toolbar) & Top-Center Toast ---
+    this.hintPanel = new WoodLabelPanel(this, {
+      originX: 0.5,
+      originY: 1,
+      scale: s,
+      fontPx: fontHint,
+      minFontPx: 18,
+      color: UI_STYLE.TEXT_GOLD,
+      padX: 8 * s,
+      padY: 3.5 * s,
+      radius: 5 * s,
+      borderWidth: 1.5 * s,
+      iconSize: 13 * s,
+      iconGap: 4.5 * s,
+      fadeInMs: 110,
+      fadeOutMs: 150,
+      initialText: this._currentHint,
+      iconKey: this._currentHintIcon,
+      iconTint: this._currentHintIconTint,
+      visible: Boolean(this._currentHint),
+    });
 
-    this.toastText = this.add
-      .text(
-        0,
-        0,
-        this._currentToast,
-        pixelTextStyle(fontToast, '#a8f0a0', {
-          stroke: '#120b07',
-          strokeThickness: strokePx,
-          backgroundColor: 'rgba(18,11,7,0.92)',
-          padding: { x: 8 * s, y: 3.5 * s },
-        })
-      )
-      .setOrigin(0.5)
-      .setVisible(Boolean(this._currentToast));
+    this.toastPanel = new WoodLabelPanel(this, {
+      originX: 0.5,
+      originY: 0.5,
+      scale: s,
+      fontPx: fontToast,
+      minFontPx: 18,
+      color: UI_STYLE.TEXT_CREAM,
+      padX: 9 * s,
+      padY: 4 * s,
+      radius: 5 * s,
+      borderWidth: 1.5 * s,
+      iconSize: 13 * s,
+      iconGap: 4.5 * s,
+      fadeInMs: 130,
+      fadeOutMs: 220,
+      initialText: this._currentToast,
+      visible: Boolean(this._currentToast),
+    });
 
-    this.hudRoot.add([this.hintText, this.toastText]);
+    this.hudRoot.add([this.hintPanel.container, this.toastPanel.container]);
 
     // --- 5. Native-Resolution Fishing Bite / Reel Timing Indicator (above player) ---
     this.fishingAlertGroup = this.add.container(0, 0).setVisible(false);
     const alertW = 86 * s;
     const alertH = 26 * s;
     this.fishingAlertBg = this.add.graphics();
-    this.fishingAlertBg.fillStyle(0x2a140d, 0.96);
-    this.fishingAlertBg.fillRoundedRect(
-      -alertW / 2,
-      -alertH / 2,
-      alertW,
-      alertH,
-      4 * s
-    );
-    this.fishingAlertBg.lineStyle(1.8 * s, 0xffd866, 1);
-    this.fishingAlertBg.strokeRoundedRect(
-      -alertW / 2,
-      -alertH / 2,
-      alertW,
-      alertH,
-      4 * s
-    );
+    drawWoodPanel(this.fishingAlertBg, -alertW / 2, -alertH / 2, alertW, alertH, {
+      scale: s,
+      radius: 5 * s,
+      borderColor: 0xffd866,
+      borderWidth: 1.8 * s,
+    });
 
     const alertIcon = this.add
       .image(-alertW / 2 + 10 * s, -4 * s, ASSET_KEYS.ICON_ALERTED)
@@ -665,7 +704,7 @@ export class UIScene extends Phaser.Scene {
 
     // --- 6. Hidden Debug Corner Buttons & Active Audio Overlay (ONLY when `?debug=1`) ---
     this.debugGroup = null;
-    this.debugAudioText = null;
+    this.debugAudioPanel = null;
     if (isDebugModeEnabled()) {
       this.debugGroup = this.add.container(0, 0);
       const dbgBtnH = 18 * s;
@@ -694,21 +733,31 @@ export class UIScene extends Phaser.Scene {
       btnDay.setPosition(66 * s, 0);
       btnSeeds.setPosition(113 * s, 0);
 
-      this.debugAudioText = this.add
-        .text(
-          134 * s,
-          12 * s,
-          'AUDIO: memuat...',
-          pixelTextStyle(fontDebug, '#e6f5d0', {
-            stroke: '#0d0805',
-            strokeThickness: strokePx,
-            backgroundColor: 'rgba(14,9,6,0.88)',
-            padding: { x: 4 * s, y: 2.5 * s },
-          })
-        )
-        .setOrigin(1, 0);
+      this.debugAudioPanel = new WoodLabelPanel(this, {
+        x: 134 * s,
+        y: 12 * s,
+        originX: 1,
+        originY: 0,
+        scale: s,
+        fontPx: fontDebug,
+        minFontPx: 14,
+        color: '#e6f5d0',
+        padX: 5 * s,
+        padY: 3 * s,
+        radius: 4 * s,
+        borderWidth: 1.2 * s,
+        fadeInMs: 0,
+        fadeOutMs: 0,
+        initialText: 'AUDIO: memuat...',
+        visible: true,
+      });
 
-      this.debugGroup.add([btnCoins, btnDay, btnSeeds, this.debugAudioText]);
+      this.debugGroup.add([
+        btnCoins,
+        btnDay,
+        btnSeeds,
+        this.debugAudioPanel.container,
+      ]);
       this.hudRoot.add(this.debugGroup);
 
       this._refreshDebugAudioOverlay();
@@ -721,7 +770,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   _refreshDebugAudioOverlay() {
-    if (!this.debugAudioText) return;
+    if (!this.debugAudioPanel) return;
     const snap = AudioManager.getActiveSoundsSnapshot();
     const mPct = Math.round((snap.musicLevel ?? 0) * 100);
     const aPct = Math.round((snap.ambienceLevel ?? 0) * 100);
@@ -737,7 +786,7 @@ export class UIScene extends Phaser.Scene {
         lines.push(`• ${it.category}: ${it.key} (vol ${it.volume.toFixed(2)})`);
       }
     }
-    this.debugAudioText.setText(lines.join('\n'));
+    this.debugAudioPanel.setContent(lines.join('\n'));
   }
 
   _drawFishingBar(progressRatio = 1) {
@@ -749,7 +798,7 @@ export class UIScene extends Phaser.Scene {
     const clamped = Math.max(0, Math.min(1, Number(progressRatio) || 0));
 
     this.fishingBarFill.clear();
-    this.fishingBarFill.fillStyle(0x160c08, 0.95);
+    this.fishingBarFill.fillStyle(UI.SLOT_BG, 0.95);
     this.fishingBarFill.fillRect(-bw / 2, by, bw, bh);
 
     const fillColor =
@@ -828,36 +877,13 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  _spawnFloatingText(x, y, text, color = '#ffd866') {
-    const s = this.uiScale || 1;
-    const F = UI.FONT || {};
-    const fontPx = Math.max(
-      F.MIN_FLOATING_PX || 26,
-      Math.round((F.FLOATING || 14) * s)
-    );
-    const floater = this.add
-      .text(
-        x,
-        y,
-        text,
-        pixelTextStyle(fontPx, color, {
-          stroke: '#120b07',
-          strokeThickness: Math.max(2, Math.round(1.3 * s)),
-        })
-      )
-      .setOrigin(0.5)
-      .setDepth(420);
-
-    this.tweens.add({
-      targets: floater,
-      y: y - 20 * s,
-      alpha: 0,
-      duration: 850,
-      ease: 'Cubic.easeOut',
-      onComplete: () => {
-        floater.destroy();
-      },
-    });
+  _spawnFloatingText(x, y, text, colorOrOptions = UI_STYLE.TEXT_GOLD) {
+    if (!this.floatingPool) return;
+    const opts =
+      typeof colorOrOptions === 'string'
+        ? { color: colorOrOptions }
+        : { ...(colorOrOptions || {}) };
+    this.floatingPool.spawn(x, y, text, opts);
   }
 
   _highlightToolSlot(activeIdx) {
@@ -1089,16 +1115,25 @@ export class UIScene extends Phaser.Scene {
       });
     }
 
-    if (this.hintText) {
-      this.hintText.setPosition(
+    if (this.questPanel) {
+      const questMaxW = isNarrowTop
+        ? Math.max(120 * s, w - safeX * 2 - 114 * s)
+        : Math.min(340 * s, w - safeX * 2);
+      this.questPanel.setMaxWidth(questMaxW);
+    }
+
+    if (this.hintPanel) {
+      this.hintPanel.setMaxWidth(Math.max(140 * s, w - safeX * 2 - 8 * s));
+      this.hintPanel.setPosition(
         w / 2,
-        toolbarY - this.toolbarSlotH / 2 - 12 * s
+        toolbarY - this.toolbarSlotH / 2 - 6 * s
       );
     }
-    if (this.toastText) {
-      this.toastText.setPosition(
+    if (this.toastPanel) {
+      this.toastPanel.setMaxWidth(Math.max(140 * s, w - safeX * 2 - 8 * s));
+      this.toastPanel.setPosition(
         w / 2,
-        isNarrowTop ? safeY + 62 * s : safeY + 38 * s
+        isNarrowTop ? safeY + 66 * s : safeY + 42 * s
       );
     }
     if (this.touchControls) {
@@ -1226,40 +1261,27 @@ export class UIScene extends Phaser.Scene {
 
   _updateQuestTracker(text) {
     this._currentQuestTracker = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!this.questText) return;
+    if (!this.questPanel) return;
 
-    this.questText.setText(this._currentQuestTracker);
-    this.questText.setVisible(Boolean(this._currentQuestTracker));
-    if (!this._currentQuestTracker) return;
-
-    const s = this.uiScale || 1;
-    const F = UI.FONT || {};
-    const basePx = Math.max(
-      F.MIN_HUD_SMALL_PX || 22,
-      Math.round((F.HUD_SMALL || 12) * s)
-    );
-    this.questText.setFontSize(basePx);
-
-    const maxW = this.viewWidth - UI.SAFE_MARGIN_X * 2 * s - 8 * s;
-    if (maxW > 0 && this.questText.width > maxW) {
-      this.questText.setFontSize(
-        Math.max(16, Math.floor((basePx * maxW) / this.questText.width))
-      );
-    }
+    this.questPanel.setContent(this._currentQuestTracker);
+    this.questPanel.setVisible(Boolean(this._currentQuestTracker));
   }
 
   _showToast(message) {
-    if (!this.toastText) return;
+    if (!this.toastPanel) return;
     const singleLine = String(message || '').replace(/\s+/g, ' ').trim();
     this._currentToast = singleLine;
-    this.toastText.setText(singleLine);
-    this.toastText.setVisible(Boolean(singleLine));
-    this.toastText.setAlpha(1);
+    if (!singleLine) {
+      this.toastPanel.hide();
+      return;
+    }
+    this.toastPanel.setContent(singleLine);
+    this.toastPanel.show();
 
     if (this._toastTimer) this._toastTimer.remove(false);
     this._toastTimer = this.time.delayedCall(1900, () => {
       this._currentToast = '';
-      if (this.toastText) this.toastText.setVisible(false);
+      if (this.toastPanel) this.toastPanel.hide();
     });
   }
 
@@ -1268,16 +1290,25 @@ export class UIScene extends Phaser.Scene {
       this._highlightToolSlot(idx);
       this._showToast(`Alat: ${tool.name}`);
     };
-    this._onHint = (text) => {
-      const singleLine = String(text || '').replace(/\s+/g, ' ').trim();
+    this._onHint = (payload) => {
+      const rawText =
+        payload && typeof payload === 'object' ? payload.text : payload;
+      const iconKey =
+        payload && typeof payload === 'object' ? payload.iconKey || null : null;
+      const iconTint =
+        payload && typeof payload === 'object' ? payload.iconTint ?? null : null;
+      const singleLine = String(rawText || '').replace(/\s+/g, ' ').trim();
       this._currentHint = singleLine;
-      if (!this.hintText) return;
-      this.hintText.setText(singleLine);
-      this.hintText.setVisible(
-        Boolean(singleLine) &&
-          !(this.shopModal && this.shopModal.isOpen) &&
-          !(this.dialogueBox && this.dialogueBox.isOpen)
-      );
+      this._currentHintIcon = iconKey;
+      this._currentHintIconTint = iconTint;
+      if (!this.hintPanel) return;
+      if (singleLine) {
+        this.hintPanel.setContent(singleLine, { iconKey, iconTint });
+      }
+      const blocked =
+        (this.shopModal && this.shopModal.isOpen) ||
+        (this.dialogueBox && this.dialogueBox.isOpen);
+      this.hintPanel.setVisible(Boolean(singleLine) && !blocked);
     };
     this._onToast = (msg) => this._showToast(msg);
     this._onTimeUpdated = (snapshot) => {
@@ -1311,8 +1342,13 @@ export class UIScene extends Phaser.Scene {
       if (!item) return;
       const s = this.uiScale || 1;
       const fx = (UI.SAFE_MARGIN_X + 216) * s;
-      const fy = (UI.SAFE_MARGIN_Y + 22) * s;
-      this._spawnFloatingText(fx, fy, `+${amount} ${item.name}`, '#a8f0a0');
+      const fy = (UI.SAFE_MARGIN_Y + 34) * s;
+      this._spawnFloatingText(fx, fy, `+${amount} ${item.name}`, {
+        color: UI_STYLE.TEXT_GAIN,
+        iconKey: item.iconKey || null,
+        iconTint: item.tint ?? null,
+        badgeKey: item.badgeKey || null,
+      });
     };
     this._onCoinsChanged = (coins) => {
       if (this.coinText) {
@@ -1381,8 +1417,8 @@ export class UIScene extends Phaser.Scene {
       if (this.fishingAlertGroup) {
         this.fishingAlertGroup.setVisible(false);
       }
-      if (this.hintText) {
-        this.hintText.setVisible(false);
+      if (this.hintPanel) {
+        this.hintPanel.setVisible(false, true);
       }
       if (this.touchControls) {
         this.touchControls.setVisible(false);
@@ -1398,8 +1434,8 @@ export class UIScene extends Phaser.Scene {
       if (this.touchControls && this.touchControls.isTouchDevice) {
         this.touchControls.setVisible(true);
       }
-      if (this.hintText && this._currentHint) {
-        this.hintText.setVisible(true);
+      if (this.hintPanel && this._currentHint) {
+        this.hintPanel.setVisible(true);
       }
     };
     this._onCloseUiPanels = () => {
@@ -1522,6 +1558,24 @@ export class UIScene extends Phaser.Scene {
       } catch (err) {
         console.error('[UIScene] dialogueBox.destroy failed', err);
       }
+      try {
+        if (this.floatingPool) this.floatingPool.destroy();
+      } catch (err) {
+        console.error('[UIScene] floatingPool.destroy failed', err);
+      }
+      try {
+        if (this.hintPanel) this.hintPanel.destroy();
+        if (this.toastPanel) this.toastPanel.destroy();
+        if (this.questPanel) this.questPanel.destroy();
+        if (this.debugAudioPanel) this.debugAudioPanel.destroy();
+      } catch (err) {
+        console.error('[UIScene] label panels destroy failed', err);
+      }
+      this.floatingPool = null;
+      this.hintPanel = null;
+      this.toastPanel = null;
+      this.questPanel = null;
+      this.debugAudioPanel = null;
       this.touchControls = null;
       this.shopModal = null;
       this.dialogueBox = null;
