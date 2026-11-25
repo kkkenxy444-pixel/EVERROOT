@@ -112,6 +112,8 @@ export class InventorySystem {
   constructor(gameState, onStateChangedCallback = null) {
     this.gameState = gameState;
     this.onStateChanged = onStateChangedCallback;
+    this._lastEmittedSeedId = null;
+    this._lastEmittedSeedStock = -1;
 
     if (Array.isArray(this.gameState.inventorySlots)) {
       this.gameState.inventorySlots = InventorySystem.sanitizeSlots(
@@ -267,7 +269,7 @@ export class InventorySystem {
       }
     }
 
-    if (!silent) {
+    if (!silent && added > 0) {
       eventBus.emit(EVENTS.INVENTORY_ITEM_ADDED, {
         itemId,
         amount: added,
@@ -438,6 +440,8 @@ export class InventorySystem {
     if (owned.length === 0) {
       const valid = this.ensureValidSelectedSeed();
       const fallbackId = valid.seedId || SEED_ITEM_IDS[0];
+      this._lastEmittedSeedId = fallbackId;
+      this._lastEmittedSeedStock = 0;
       eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_UI_ERROR);
       eventBus.emit(EVENTS.SEED_CHANGED, fallbackId, 0);
       eventBus.emit(
@@ -457,6 +461,8 @@ export class InventorySystem {
     const stock = this.getCount(nextSeedId);
 
     this.gameState.selectedSeedId = nextSeedId;
+    this._lastEmittedSeedId = nextSeedId;
+    this._lastEmittedSeedStock = stock;
     const seedItem = ITEMS[nextSeedId];
 
     eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_UI_BLIP);
@@ -510,9 +516,16 @@ export class InventorySystem {
 
     this.gameState.coins = Math.max(0, (this.gameState.coins || 0) - totalCost);
     this.gameState.selectedSeedId = seedItemId;
-    this.addItem(seedItemId, qty, true);
+    const addedRes = this.addItem(seedItemId, qty, true);
 
     eventBus.emit(EVENTS.PLAY_SFX, ASSET_KEYS.SFX_BUY_CONFIRM);
+    if (addedRes.ok && addedRes.added > 0) {
+      eventBus.emit(EVENTS.INVENTORY_ITEM_ADDED, {
+        itemId: seedItemId,
+        amount: addedRes.added,
+        total: this.getCount(seedItemId),
+      });
+    }
     eventBus.emit(EVENTS.COINS_CHANGED, this.gameState.coins);
     this.emitState();
     eventBus.emit(
@@ -664,13 +677,21 @@ export class InventorySystem {
     }
   }
 
-  emitState() {
+  emitState(force = false) {
     const activeSeed = this.ensureValidSelectedSeed();
-    eventBus.emit(
-      EVENTS.SEED_CHANGED,
-      activeSeed.seedId,
-      activeSeed.stock
-    );
+    if (
+      force ||
+      activeSeed.seedId !== this._lastEmittedSeedId ||
+      activeSeed.stock !== this._lastEmittedSeedStock
+    ) {
+      this._lastEmittedSeedId = activeSeed.seedId;
+      this._lastEmittedSeedStock = activeSeed.stock;
+      eventBus.emit(
+        EVENTS.SEED_CHANGED,
+        activeSeed.seedId,
+        activeSeed.stock
+      );
+    }
     eventBus.emit(
       EVENTS.INVENTORY_UPDATED,
       this.gameState.inventory,

@@ -1297,8 +1297,6 @@ export class UIScene extends Phaser.Scene {
     };
     this._onSeedChanged = (seedId, stockCount) => {
       this._updateSeedDisplay(seedId, stockCount);
-      const seedName = ITEMS[seedId]?.name || 'Bibit';
-      this._showToast(`${seedName} (${stockCount})`);
     };
     this._onInventoryUpdated = (inventory, slots) => {
       this._updateStorageDisplay(inventory, slots);
@@ -1307,13 +1305,14 @@ export class UIScene extends Phaser.Scene {
       }
     };
     this._onItemAdded = (payload) => {
-      if (!payload || !payload.itemId || !(payload.added > 0)) return;
+      const amount = Math.floor(Number(payload?.amount) || 0);
+      if (!payload || !payload.itemId || amount <= 0) return;
       const item = ITEMS[payload.itemId];
       if (!item) return;
       const s = this.uiScale || 1;
       const fx = (UI.SAFE_MARGIN_X + 216) * s;
       const fy = (UI.SAFE_MARGIN_Y + 22) * s;
-      this._spawnFloatingText(fx, fy, `+${payload.added} ${item.name}`, '#a8f0a0');
+      this._spawnFloatingText(fx, fy, `+${amount} ${item.name}`, '#a8f0a0');
     };
     this._onCoinsChanged = (coins) => {
       if (this.coinText) {
