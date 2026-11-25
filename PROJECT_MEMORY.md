@@ -36,26 +36,19 @@ npm run preview -- --host  # port 4173
   - `Crop.js` — visual petak + stage 00–05.
   - `AmbientAnimal.js` — hewan dekoratif bebas keliling, anti-numpuk, jeda pemain, ikon hasil.
 - **systems/**
-  - `EventBus.js` — event terpusat; `FontLoader.js` — font Adapa.
-  - `AudioManager.js` — BGM/ambience/SFX, crossfade, setting audio.
-  - `SaveSystem.js` — save v2 + migrasi v1 + fallback; field opsional `livestock`, `quests`, `nodes`.
-  - `InputSystem.js` — keyboard + joystick sentuh.
-  - `WorldBuilder.js` — builder per map (`farm`/`village`), tilemap, collider, NPC, node sprite/collider, destroy.
-  - `DialogueSystem.js` — state dialog, pemilih kalimat, `startWithLines` untuk quest.
-  - `StructureBuilder.js` — kanvas struktur desa (cache global) + props.
-  - `InventorySystem.js` — 24 slot, stack 20, beli/jual, unlock; `takeItemsAndAddCoins` atomik.
-  - `QuestSystem.js` — state quest tanpa Phaser: `belum/tersedia/aktif/selesai`, progres dari inventory, penanda NPC, tracker.
-  - `ResourceNodeSystem.js` — tebang/tambang farm otomatis (tanpa pilih alat), frame kontak, respawn 4/3 hari, tas penuh aman.
-  - `FarmingSystem.js` — cangkul, tanam, siram, tumbuh saat tidur, panen.
-  - `FishingSystem.js` — idle→casting→waiting→bite→reeling→caught.
-  - `TimeSystem.js` — 06:00–24:00, fase/tint, hari baru; `WeatherSystem.js` — hujan deterministik.
-  - `AnimalTerrain.js` — grid tile terlarang; `LivestockSystem.js` — telur/susu + `lastCollectedDay`.
-- **ui/** — `TouchControls.js`, `DialogueBox.js` (typewriter/blip), `ShopModal.js` (jual/beli).
+  - `EventBus.js` — event terpusat; `FontLoader.js` — font Adapa; `AudioManager.js` — BGM/ambience/SFX, crossfade, setting.
+  - `SaveSystem.js` — save v2 + migrasi v1 + fallback (`selectedToolId` tak dikenal → default); opsional `livestock`/`quests`/`nodes`.
+  - `InputSystem.js` — keyboard (1–6 alat) + joystick sentuh; `WorldBuilder.js` — builder per map (`farm`/`village`), tilemap, collider, NPC, node, destroy.
+  - `DialogueSystem.js` — state dialog + `startWithLines` quest; `StructureBuilder.js` — kanvas struktur desa + props.
+  - `InventorySystem.js` — 24 slot, stack 20, beli/jual, unlock; `takeItemsAndAddCoins` atomik; `emitState` hanya pancar `SEED_CHANGED` saat bibit berubah.
+  - `QuestSystem.js` — state quest tanpa Phaser (`belum/tersedia/aktif/selesai`), progres tas, penanda NPC, tracker.
+  - `ResourceNodeSystem.js` — tebang/tambang farm via Kapak(5)/Beliung(6), jangkauan `REACH_PX` 36px + kerucut 120°/omni dekat, auto-hadap, penanda target reusable, respawn 4/3 hari.
+  - `FarmingSystem.js` — cangkul/tanam/siram/panen; `FishingSystem.js` — state mancing; `TimeSystem.js`/`WeatherSystem.js` — waktu/tint/hujan; `AnimalTerrain.js`/`LivestockSystem.js` — hewan/ternak.
+- **ui/** — `UIStyle.js` (`drawWoodPanel`, `WoodLabelPanel`, `FloatingTextPool` pooled), `TouchControls.js`, `DialogueBox.js` (typewriter/blip + `WoodLabelPanel` nama), `ShopModal.js` (jual/beli).
 - **scenes/**
-  - `BootScene.js`/`PreloadScene.js` — font, aset, animasi global.
-  - `MenuScene.js` — judul, Lanjut/Mulai/Hapus, audio.
-  - `GameScene.js` — satu scene semua map: builder, switch/teardown, kamera, sistem map-local, tidur, save, tint, wiring quest.
-  - `UIScene.js` — HUD, tas 24 slot (laci 6x4 scroll), toolbar, toast, dialog, audio, tracker quest + floating text.
+  - `BootScene.js`/`PreloadScene.js`/`MenuScene.js` — font, aset, animasi global, menu judul.
+  - `GameScene.js` — satu scene semua map: builder, switch/teardown, kamera, sistem map-local, tidur, save, tint, quest, prioritas AKSI.
+  - `UIScene.js` — HUD, tas 24 slot, hotbar 6 slot (`computeToolbarLayout`), panel kayu seragam (hint/toast/tracker/debug), pooled floating text berikon item, dialog, audio.
 
 ## 4. Tempat menyetel nilai
 | Kebutuhan | Lokasi |
@@ -74,8 +67,7 @@ npm run preview -- --host  # port 4173
 ## 5. Status fitur + tes
 - **V1 + Paket 1–3** `[SELESAI]` — menu, farm, farming 11 tanaman/unlock, mancing, waktu/tint, tas 24 slot, hujan 120 drop, 8 hewan bebas, ternak (ayam 12G/hr, sapi 30G/2hr).
 - **Desa Fase 1–4** `[SELESAI-BUILD]` — satu `GameScene` + `mapId`, gerbang 2 arah, struktur 64x40, 3 NPC, 6 quest (simulasi 147 cek).
-- **Tebang kayu & tambang batu (farm)** `[SELESAI-BUILD]` — 10 pohon + 7 batu (3 crop tileset + 4 baru), anim `axe`/`mining` 10f, SFX `life_axe_chop_01.ogg` (0.61) & `metal_clang_opt.ogg` (0.15), drop `wood` (6G) & `rock` (9G), respawn 4/3 hari, save `nodes`; build **48 modul** + simulasi **505 cek**.
-- Build terakhir **lolos** (48 modul, Vite 6.4.5); save v2.
+- **Tebang kayu & tambang batu + perbaikan UI** `[SELESAI-BUILD]` — 10 pohon + 7 batu farm, Kapak(5)/Beliung(6) di hotbar 6 slot (`ICON_AXE`/`ICON_PICKAXE`), `REACH_PX` 36px + kerucut 120°/omni 20px + penanda target; gaya teks kayu seragam (`UIStyle.js`, tanpa kotak hitam, floating text pooled berikon); perbaikan bug teks perolehan (`payload.amount` & `SEED_CHANGED` tanpa toast); build **49 modul** (Vite 6.4.5), save v2.
 
 ## 6. Gotchas
 - **Freeze Phaser 3.90**: jangan sentuh GameObject di SHUTDOWN; pakai guard + `try/catch`.
@@ -86,7 +78,10 @@ npm run preview -- --host  # port 4173
 - **Tas 24 slot**: `sanitizeSlots` isi sisa tanpa memotong save v2 12-slot.
 - **Hewan ambient**: tanpa collider; larangan via `AnimalTerrain` (kebun+1 tile, dermaga).
 - **Save opsional**: `livestock`/`quests`/`nodes` tanpa bump versi; sanitasi di `SaveSystem.load()`.
-- **Node farm**: bangun sebelum `AnimalTerrain`; prioritas AKSI & hint paling akhir sebelum fallback; kontak `~300 ms` + `AudioManager` dukung `rate`.
+- **Node farm & alat**: bangun sebelum `AnimalTerrain`; Kapak(5)/Beliung(6) wajib (tanpa auto-tool), prioritas AKSI: landmark/NPC > Kapak/Beliung pada node > ternak; kontak `~300 ms` + `AudioManager` dukung `rate`.
+- **Teks perolehan & bibit (akar bug A)**: `INVENTORY_ITEM_ADDED` mengirim `{ itemId, amount, total }` (jangan baca `payload.added`); `SEED_CHANGED` hanya sinkron status HUD bibit (jangan `_showToast`), `emitState` hanya pancar `SEED_CHANGED` bila bibit/stok berubah.
+- **Gaya teks seragam**: pakai `UIStyle.js` (`WoodLabelPanel`, `drawWoodPanel`, `FloatingTextPool`); `ui_cozy_free.png` tidak dipakai karena palet krem kafe tidak cocok dengan kayu gelap HUD.
+- **Garis hitam tipis 1/3 layar (belum terbukti)**: overlay tint/hujan jauh melebihi layar (`2w×2h`); dugaan utama WebGL tilemap row seam pada tileset tanpa extrude + `zoom 3` + `CAMERA.LERP` pecahan.
 - **Pindah map**: jangan `stop(GameScene)`; teardown sistem → `WorldBuilder` → player; listener fadeIn sebelum `fadeIn()`; cache `village_struct_*` jangan dihapus.
 - **Quest**: simpan `aktif`/`selesai` saja; `takeItemsAndAddCoins({ save: false })` lalu satu save.
 
@@ -124,3 +119,4 @@ npm run preview -- --host  # port 4173
 | 2026-11-23 | `7e4ae4c` | Desa fase 4: quest kecil |
 | 2026-11-24 | `0d0cb5f`,`b340f62` | Optimasi audio preload (33.18 MB → 12.42 MB) |
 | 2026-11-25 | `da18f77` | Tebang kayu & tambang batu (map farm) |
+| 2026-11-25 | `1f4aa89`,`938dfd5`,`e94c477` | Fix teks perolehan, gaya teks kayu HUD, Kapak & Beliung + jangkauan |
