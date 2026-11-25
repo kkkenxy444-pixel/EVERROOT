@@ -1,5 +1,6 @@
 import { ASSET_KEYS } from '../data/assetKeys.js';
 import { DEPTH, RESOURCE_NODES, TILE } from '../data/gameConfig.js';
+import { TOOL_IDS } from '../data/items.js';
 import {
   getNodeStatsForDay,
   getRespawnDays,
@@ -13,13 +14,38 @@ import { eventBus, EVENTS } from './EventBus.js';
 
 /**
  * Farm-only resource gathering system (trees -> Kayu, rocks -> Batu).
- * - Automatic tool selection on AKSI when facing a nearby node (no toolbar switch needed)
+ * - Explicit tool matching: Kapak (5) chops trees, Beliung (6) mines rocks
+ * - Reach-based nearest targeting (REACH_PX, 120° forward cone + close omni-range)
+ * - Auto-faces the target node on strike; shows subtle reusable target highlight
  * - Deterministic hit counts & drops from (nodeId + day)
  * - Reusable dust effect & shake tween on hit (no per-frame allocations)
  * - Full-inventory guard on final hit (preserves node and warns player)
  * - Day-based respawn (4d trees, 3d rocks), postponed if player or animal occupies tile
  */
 export class ResourceNodeSystem {
+  static requiredKindForTool(toolId) {
+    if (toolId === TOOL_IDS.AXE) return NODE_KINDS.TREE;
+    if (toolId === TOOL_IDS.PICKAXE) return NODE_KINDS.ROCK;
+    return null;
+  }
+
+  static getToolMetaForKind(kind) {
+    if (kind === NODE_KINDS.TREE) {
+      return {
+        toolId: TOOL_IDS.AXE,
+        actionLabel: 'Tebang',
+        wrongToolHint: 'Pilih Kapak (5)',
+        iconKey: ASSET_KEYS.ICON_AXE,
+      };
+    }
+    return {
+      toolId: TOOL_IDS.PICKAXE,
+      actionLabel: 'Tambang',
+      wrongToolHint: 'Pilih Beliung (6)',
+      iconKey: ASSET_KEYS.ICON_PICKAXE,
+    };
+  }
+
   constructor(scene, gameState, worldBuilder, inventorySystem, options = {}) {
     this.scene = scene;
     this.gameState = gameState;
@@ -46,6 +72,15 @@ export class ResourceNodeSystem {
     this._nextHitAllowedAt = 0;
     this._contactTimer = null;
     this._destroyed = false;
+
+    // Reusable hint payload (avoid per-frame allocations in GameScene.update)
+    this._hintOut = { text: '', iconKey: null };
+
+    // Single reusable subtle target highlight ring drawn once per target change
+    this.targetHighlightGfx =
+      scene?.add?.graphics ? scene.add.graphics().setVisible(false) : null;
+    this._highlightedNodeId = null;
+    this._highlightPhase = 0;
 
     // Single reusable dust puff sprite for chop/mine impacts
     this.hitDustSprite =
@@ -137,67 +172,170 @@ export class ResourceNodeSystem {
   }
 
   /**
-   * Finds the active resource node the player is facing within close reach.
+   * Finds the nearest active resource node (optionally filtered by `kindFilter`)
+   * within `RESOURCE_NODES.REACH_PX` from the player's feet to the node base,
+   * inside the 120° forward cone (`FRONT_ARC_HALF_COS`) or within `CLOSE_OMNI_PX`
+   * regardless of facing direction.
    */
-  getTargetNode(player) {
+  findNearestNodeInReach(player, kindFilter = null) {
     if (!player || this._destroyed) return null;
     const nodes = this._getNodes();
     if (nodes.length === 0) return null;
 
     const px = player.x;
     const py = player.y;
-    const front = player.getFrontTile();
-    const maxR = RESOURCE_NODES.INTERACT_RADIUS_PX;
-    const maxRSq = maxR * maxR;
+    const reach = RESOURCE_NODES.REACH_PX;
+    const reachSq = reach * reach;
+    const closeOmni = RESOURCE_NODES.CLOSE_OMNI_PX;
+    const closeOmniSq = closeOmni * closeOmni;
+    const minCos = RESOURCE_NODES.FRONT_ARC_HALF_COS;
+
     const fx = player.facing?.x ?? 0;
     const fy = player.facing?.y ?? 1;
     const fLen = Math.hypot(fx, fy) || 1;
     const nfx = fx / fLen;
     const nfy = fy / fLen;
 
-    let frontMatch = null;
-    let bestAligned = null;
-    let bestDistSq = maxRSq;
+    let bestNode = null;
+    let bestDistSq = reachSq + 0.0001;
 
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       if (!node || !node.active) continue;
+      if (kindFilter && node.kind !== kindFilter) continue;
 
       const dx = node.baseX - px;
-      const dy = (node.kind === NODE_KINDS.TREE ? node.ty * TILE.SIZE + 8 : node.baseY) - py;
+      const dy = node.baseY - py;
       const distSq = dx * dx + dy * dy;
-      if (distSq > maxRSq) continue;
+      if (distSq > reachSq) continue;
 
-      if (front && node.tx === front.tx && node.ty === front.ty) {
-        frontMatch = node;
-        break;
+      if (distSq > closeOmniSq) {
+        const dist = Math.sqrt(distSq) || 1;
+        const dot = (dx / dist) * nfx + (dy / dist) * nfy;
+        if (dot < minCos) continue;
       }
 
-      const dist = Math.sqrt(distSq) || 1;
-      const dot = (dx / dist) * nfx + (dy / dist) * nfy;
-      if (dot >= RESOURCE_NODES.FACING_MIN_DOT && distSq < bestDistSq) {
+      if (distSq < bestDistSq) {
         bestDistSq = distSq;
-        bestAligned = node;
+        bestNode = node;
       }
     }
 
-    return frontMatch || bestAligned;
+    return bestNode;
   }
 
-  getNodeHint(player) {
-    const node = this.getTargetNode(player);
-    if (!node) return '';
-    return node.kind === NODE_KINDS.TREE ? '[AKSI] Tebang' : '[AKSI] Tambang';
+  /**
+   * Returns the nearest active node in reach that matches `toolId`
+   * (Kapak -> pohon, Beliung -> batu). Returns `null` for all other tools.
+   */
+  getTargetNode(player, toolId) {
+    const requiredKind = ResourceNodeSystem.requiredKindForTool(toolId);
+    if (!requiredKind) return null;
+    return this.findNearestNodeInReach(player, requiredKind);
   }
 
-  tryHit(player) {
+  /**
+   * Returns the nearest active node of ANY kind in reach (used to show
+   * wrong-tool guidance like "Pilih Kapak (5)" / "Pilih Beliung (6)").
+   */
+  getAnyNodeInReach(player) {
+    return this.findNearestNodeInReach(player, null);
+  }
+
+  /**
+   * Returns reusable `{ text, iconKey }` hint for the current node in reach,
+   * or `null` when no resource node is in reach.
+   */
+  getNodeHint(player, toolId) {
+    const matching = this.getTargetNode(player, toolId);
+    if (matching) {
+      const meta = ResourceNodeSystem.getToolMetaForKind(matching.kind);
+      this._hintOut.text = meta.actionLabel;
+      this._hintOut.iconKey = meta.iconKey;
+      return this._hintOut;
+    }
+
+    const anyNode = this.getAnyNodeInReach(player);
+    if (anyNode) {
+      const meta = ResourceNodeSystem.getToolMetaForKind(anyNode.kind);
+      this._hintOut.text = meta.wrongToolHint;
+      this._hintOut.iconKey = meta.iconKey;
+      return this._hintOut;
+    }
+
+    return null;
+  }
+
+  hasHighlightedNode() {
+    return this._highlightedNodeId !== null;
+  }
+
+  _clearTargetHighlight() {
+    this._highlightedNodeId = null;
+    if (this.targetHighlightGfx) {
+      this.targetHighlightGfx.setVisible(false);
+    }
+  }
+
+  /**
+   * Toggles & positions the reusable subtle outline/glow on the node that will
+   * be hit by the currently selected matching tool (zero per-frame allocations).
+   */
+  updateTargetHighlight(player, toolId, delta = 0) {
+    if (!this.targetHighlightGfx || this._destroyed) return;
+    const target = toolId ? this.getTargetNode(player, toolId) : null;
+    if (!target) {
+      if (this._highlightedNodeId !== null) {
+        this._clearTargetHighlight();
+      }
+      return;
+    }
+
+    if (target.id !== this._highlightedNodeId) {
+      this._highlightedNodeId = target.id;
+      const g = this.targetHighlightGfx;
+      const isTree = target.kind === NODE_KINDS.TREE;
+      const rx = isTree ? 11.5 : 10.5;
+      const ry = isTree ? 6.5 : 7;
+      const oy = isTree ? -2 : 1;
+
+      g.clear();
+      // Subtle dark contrast halo so warm gold glow pops on bright grass
+      g.lineStyle(2.2, 0x22140b, 0.35);
+      g.strokeEllipse(0, oy, rx * 2 + 1.5, ry * 2 + 1.5);
+      // Soft golden-cream shimmer fill
+      g.fillStyle(0xf7d560, 0.16);
+      g.fillEllipse(0, oy, rx * 2, ry * 2);
+      // Crisp warm outline
+      g.lineStyle(1.3, 0xf7d560, 0.88);
+      g.strokeEllipse(0, oy, rx * 2, ry * 2);
+
+      const depth = isTree
+        ? DEPTH.Y_SORT_BASE + target.baseY - 1
+        : DEPTH.Y_SORT_BASE + (target.ty + 0.8) * TILE.SIZE - 1;
+      g.setPosition(target.baseX, target.baseY);
+      g.setDepth(depth);
+      g.setVisible(true);
+    }
+
+    this._highlightPhase += Number(delta) || 16;
+    const pulse = 0.74 + 0.24 * Math.sin(this._highlightPhase * 0.0055);
+    this.targetHighlightGfx.setAlpha(pulse);
+  }
+
+  tryHit(player, toolId) {
     if (!player || this._destroyed || player.actionLocked) return false;
 
     const now = this.scene?.time?.now ?? Date.now();
     if (now < this._nextHitAllowedAt) return false;
 
-    const node = this.getTargetNode(player);
+    const node = this.getTargetNode(player, toolId);
     if (!node) return false;
+
+    // Automatically face target node before striking
+    if (typeof player.facePoint === 'function') {
+      player.facePoint(node.baseX, node.baseY);
+    }
 
     const isTree = node.kind === NODE_KINDS.TREE;
     const animAction = isTree ? 'axe' : 'mining';
@@ -280,6 +418,9 @@ export class ResourceNodeSystem {
       this.hitsDoneById.delete(node.id);
       this.gameState.nodes[node.id] = day + getRespawnDays(node.kind);
       this.worldBuilder.setResourceNodeActive(node, false, false);
+      if (this._highlightedNodeId === node.id) {
+        this._clearTargetHighlight();
+      }
 
       const terrain = this.getAnimalTerrain();
       if (terrain && typeof terrain.setTileBlocked === 'function') {
@@ -364,10 +505,15 @@ export class ResourceNodeSystem {
       if (this.hitDustSprite && this.hitDustSprite.scene) {
         this.hitDustSprite.destroy();
       }
+      if (this.targetHighlightGfx && this.targetHighlightGfx.scene) {
+        this.targetHighlightGfx.destroy();
+      }
     } catch {
       // ignore during scene shutdown
     }
     this.hitDustSprite = null;
+    this.targetHighlightGfx = null;
+    this._highlightedNodeId = null;
     this.hitsDoneById.clear();
     this.worldBuilder = null;
     this.inventorySystem = null;

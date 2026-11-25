@@ -638,8 +638,9 @@ export const RESOURCE_NODES = Object.freeze({
   ROCK_ITEM_ID: 'rock',
   WOOD_SELL_PRICE: 6,
   ROCK_SELL_PRICE: 9,
-  INTERACT_RADIUS_PX: 26,
-  FACING_MIN_DOT: 0.4,
+  REACH_PX: 36,
+  CLOSE_OMNI_PX: 20,
+  FRONT_ARC_HALF_COS: 0.5, // cos(60°) -> 120° forward cone
   AXE_ANIM_FPS: 18,
   AXE_LOCK_MS: 560,
   AXE_CONTACT_DELAY_MS: 300,

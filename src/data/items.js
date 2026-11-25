@@ -11,6 +11,8 @@ export const TOOL_IDS = Object.freeze({
   WATERING_CAN: 'tool_water',
   FISHING_ROD: 'tool_rod',
   SEEDS: 'tool_seeds',
+  AXE: 'tool_axe',
+  PICKAXE: 'tool_pickaxe',
 });
 
 export const TOOLS = Object.freeze([
@@ -42,6 +44,20 @@ export const TOOLS = Object.freeze([
     shortLabel: 'Pancing',
     iconKey: ASSET_KEYS.ICON_ROD,
     description: 'Lempar kail ke arah danau/sungai untuk memancing ikan.',
+  },
+  {
+    id: TOOL_IDS.AXE,
+    name: 'Kapak',
+    shortLabel: 'Kapak',
+    iconKey: ASSET_KEYS.ICON_AXE,
+    description: 'Tebang pohon di kebun untuk mengumpulkan kayu.',
+  },
+  {
+    id: TOOL_IDS.PICKAXE,
+    name: 'Beliung',
+    shortLabel: 'Beliung',
+    iconKey: ASSET_KEYS.ICON_PICKAXE,
+    description: 'Tambang batu di kebun untuk mengumpulkan batu.',
   },
 ]);
 

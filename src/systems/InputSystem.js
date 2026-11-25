@@ -51,6 +51,8 @@ export class InputSystem {
       TWO: Phaser.Input.Keyboard.KeyCodes.TWO,
       THREE: Phaser.Input.Keyboard.KeyCodes.THREE,
       FOUR: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      FIVE: Phaser.Input.Keyboard.KeyCodes.FIVE,
+      SIX: Phaser.Input.Keyboard.KeyCodes.SIX,
     });
 
     this._onKeyDownE = () => {
@@ -77,6 +79,12 @@ export class InputSystem {
     this._onKeyDown4 = () => {
       if (this.enabled) eventBus.emit(EVENTS.INPUT_SELECT_TOOL, 3);
     };
+    this._onKeyDown5 = () => {
+      if (this.enabled) eventBus.emit(EVENTS.INPUT_SELECT_TOOL, 4);
+    };
+    this._onKeyDown6 = () => {
+      if (this.enabled) eventBus.emit(EVENTS.INPUT_SELECT_TOOL, 5);
+    };
 
     this.keys.E.on('down', this._onKeyDownE);
     this.keys.SPACE.on('down', this._onKeyDownSpace);
@@ -86,6 +94,8 @@ export class InputSystem {
     this.keys.TWO.on('down', this._onKeyDown2);
     this.keys.THREE.on('down', this._onKeyDown3);
     this.keys.FOUR.on('down', this._onKeyDown4);
+    this.keys.FIVE.on('down', this._onKeyDown5);
+    this.keys.SIX.on('down', this._onKeyDown6);
   }
 
   _setupTouchDetection() {
@@ -160,6 +170,8 @@ export class InputSystem {
       this.keys.TWO.off('down', this._onKeyDown2);
       this.keys.THREE.off('down', this._onKeyDown3);
       this.keys.FOUR.off('down', this._onKeyDown4);
+      this.keys.FIVE.off('down', this._onKeyDown5);
+      this.keys.SIX.off('down', this._onKeyDown6);
     }
   }
 }

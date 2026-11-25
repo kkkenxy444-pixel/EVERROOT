@@ -70,6 +70,26 @@ export class Player {
     this.container.setDepth(DEPTH.Y_SORT_BASE + y);
   }
 
+  /**
+   * Turns player facing vector & horizontal sprite flip toward `(targetX, targetY)`.
+   */
+  facePoint(targetX, targetY) {
+    if (!this.container || !this.container.scene) return;
+    const dx = targetX - this.container.x;
+    const dy = targetY - this.container.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.001) return;
+    this.facing.x = dx / len;
+    this.facing.y = dy / len;
+    if (Math.abs(dx) > 0.5) {
+      this.flipX = dx < 0;
+      for (const part of PLAYER_CHARACTER_PARTS) {
+        const sprite = this.layers[part];
+        if (sprite && sprite.scene) sprite.setFlipX(this.flipX);
+      }
+    }
+  }
+
   getTileCoords() {
     const cx = this.container ? this.container.x : 0;
     const cy = this.container ? this.container.y : 0;

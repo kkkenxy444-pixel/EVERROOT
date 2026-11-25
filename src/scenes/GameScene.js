@@ -71,6 +71,7 @@ export class GameScene extends Phaser.Scene {
     this._lastCursorTy = -1;
     this._lastCursorReady = false;
     this._lastHint = null;
+    this._lastHintIcon = null;
     this._effectiveTarget = { tx: 0, ty: 0 };
     this._morningCrowTimers = [];
 
@@ -216,6 +217,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!isFarm) {
       this._lastHint = '';
+      this._lastHintIcon = null;
       eventBus.emit(EVENTS.INTERACTION_HINT, '');
       return;
     }
@@ -306,6 +308,7 @@ export class GameScene extends Phaser.Scene {
     this._lastCursorTy = -1;
     this._lastCursorReady = false;
     this._lastHint = '';
+    this._lastHintIcon = null;
     eventBus.emit(EVENTS.INTERACTION_HINT, '');
   }
 
@@ -722,6 +725,7 @@ export class GameScene extends Phaser.Scene {
       if (this.inputSystem) this.inputSystem.setTouchVector(0, 0);
       if (this.player && this.player.body) this.player.body.setVelocity(0, 0);
       this._lastHint = null;
+      this._lastHintIcon = null;
       eventBus.emit(EVENTS.INTERACTION_HINT, '');
       if (this.isShopOpen) eventBus.emit(EVENTS.CLOSE_SHOP);
       eventBus.emit(EVENTS.CLOSE_UI_PANELS);
@@ -739,6 +743,7 @@ export class GameScene extends Phaser.Scene {
         this.inputSystem.enabled = true;
       }
       this._lastHint = null;
+      this._lastHintIcon = null;
     };
 
     this._onResize = (gameSize) => {
@@ -1390,6 +1395,18 @@ export class GameScene extends Phaser.Scene {
 
     const target = this._getEffectiveTargetTile();
     const tool = TOOLS[this.toolIndex];
+    const isNodeTool =
+      tool && (tool.id === TOOL_IDS.AXE || tool.id === TOOL_IDS.PICKAXE);
+
+    // Kapak / Beliung on a valid node in reach takes priority above livestock & farming
+    if (
+      isNodeTool &&
+      this.resourceNodeSystem &&
+      this.resourceNodeSystem.tryHit(this.player, tool.id)
+    ) {
+      return;
+    }
+
     const isFarmTool =
       tool.id === TOOL_IDS.HOE ||
       tool.id === TOOL_IDS.WATERING_CAN ||
@@ -1426,11 +1443,6 @@ export class GameScene extends Phaser.Scene {
 
     // Livestock products are collected only when no other interaction applies
     if (this._tryCollectAnimalProduct()) return;
-
-    // Resource nodes (trees/rocks on farm) run after livestock and before tool fallback messages
-    if (this.resourceNodeSystem && this.resourceNodeSystem.tryHit(this.player)) {
-      return;
-    }
 
     // Preserve the old farming guidance when no valid farm target/animals are nearby
     if (isFarmTool && this.farmingSystem) {
@@ -1661,13 +1673,48 @@ export class GameScene extends Phaser.Scene {
     );
 
     const tool = TOOLS[this.toolIndex];
+    const isNodeTool =
+      tool && (tool.id === TOOL_IDS.AXE || tool.id === TOOL_IDS.PICKAXE);
+    const canHighlightNode =
+      Boolean(this.resourceNodeSystem) &&
+      !this.isShopOpen &&
+      !this.isSleeping &&
+      !this.isDialogActive &&
+      !isFishingActive &&
+      !landmark &&
+      !nearbyNpc;
+
+    if (this.resourceNodeSystem) {
+      this.resourceNodeSystem.updateTargetHighlight(
+        this.player,
+        canHighlightNode && isNodeTool ? tool.id : null,
+        delta
+      );
+    }
+    if (this.targetCursor) {
+      this.targetCursor.setVisible(
+        !(this.resourceNodeSystem && this.resourceNodeSystem.hasHighlightedNode())
+      );
+    }
+
     let hintText = '';
+    let hintIcon = null;
     if (isFishingActive && this.fishingSystem) {
       hintText = this.fishingSystem.getFishingHint(this.player);
     } else if (landmark) {
       hintText = `[AKSI / E] ${landmark.label}`;
     } else if (nearbyNpc) {
       hintText = `[AKSI] ${NPC.HINT_LABEL}: ${nearbyNpc.name}`;
+    } else if (
+      isNodeTool &&
+      this.resourceNodeSystem &&
+      this.resourceNodeSystem.getTargetNode(this.player, tool.id)
+    ) {
+      const nodeHint = this.resourceNodeSystem.getNodeHint(this.player, tool.id);
+      if (nodeHint) {
+        hintText = nodeHint.text;
+        hintIcon = nodeHint.iconKey;
+      }
     } else if (tool && tool.id === TOOL_IDS.FISHING_ROD && this.fishingSystem) {
       hintText = this.fishingSystem.getFishingHint(this.player);
     } else if (this.farmingSystem) {
@@ -1681,12 +1728,26 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (!hintText && this.resourceNodeSystem) {
-      hintText = this.resourceNodeSystem.getNodeHint(this.player);
+      const nodeHint = this.resourceNodeSystem.getNodeHint(this.player, tool?.id);
+      if (nodeHint) {
+        hintText = nodeHint.text;
+        hintIcon = nodeHint.iconKey;
+      }
     }
 
-    if (this._lastHint !== hintText) {
+    if (this._lastHint !== hintText || this._lastHintIcon !== hintIcon) {
       this._lastHint = hintText;
-      eventBus.emit(EVENTS.INTERACTION_HINT, hintText);
+      this._lastHintIcon = hintIcon;
+      if (!hintText) {
+        eventBus.emit(EVENTS.INTERACTION_HINT, '');
+      } else if (hintIcon) {
+        eventBus.emit(EVENTS.INTERACTION_HINT, {
+          text: hintText,
+          iconKey: hintIcon,
+        });
+      } else {
+        eventBus.emit(EVENTS.INTERACTION_HINT, hintText);
+      }
     }
   }
 

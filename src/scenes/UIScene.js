@@ -24,6 +24,52 @@ import {
 } from '../ui/UIStyle.js';
 
 /**
+ * Computes non-overlapping 6-slot toolbar coordinates for landscape & portrait
+ * screens (1612x720, 720x1612, 960x540), guaranteeing clearance from the left
+ * joystick, bottom-right AKSI/ALAT/BIBIT buttons, and top HUD/Menu/Suara bar.
+ */
+export function computeToolbarLayout(w, h, s, totalW, slotH) {
+  const safeX = UI.SAFE_MARGIN_X * s;
+  const safeY = UI.SAFE_MARGIN_Y * s;
+  const joyRight =
+    safeX + (INPUT.JOYSTICK_MARGIN_LEFT + INPUT.JOYSTICK_RADIUS) * s;
+  const alatHitLeft =
+    w -
+    safeX -
+    (INPUT.TOOL_OFFSET_X + INPUT.BUTTON_SMALL_RADIUS + INPUT.BUTTON_HIT_PADDING) *
+      s;
+  const pad = 6 * s;
+  const availableBottomW = alatHitLeft - joyRight - pad * 2;
+  const isNarrowBottom = w < 420 * s || availableBottomW < totalW;
+
+  let toolbarY;
+  let centerX;
+  if (isNarrowBottom) {
+    const bibitHitTop =
+      h -
+      safeY -
+      (INPUT.SEED_OFFSET_Y +
+        INPUT.BUTTON_SMALL_RADIUS +
+        INPUT.BUTTON_HIT_PADDING) *
+        s;
+    toolbarY = bibitHitTop - 8 * s - slotH / 2;
+    centerX = w / 2;
+  } else {
+    toolbarY = h - safeY - slotH / 2;
+    const minCenter = joyRight + pad + totalW / 2;
+    const maxCenter = alatHitLeft - pad - totalW / 2;
+    centerX = Math.max(minCenter, Math.min(maxCenter, w / 2));
+  }
+
+  return {
+    isNarrowBottom,
+    centerX,
+    startX: centerX - totalW / 2,
+    toolbarY,
+  };
+}
+
+/**
  * UIScene: Parallel overlay scene rendered at native physical screen resolution
  * using integer `uiScale = getUiScale(height)`:
  * - Single compact top row: Day/Time/Phase, Coins, active seed badge, and a collapsible
@@ -538,10 +584,10 @@ export class UIScene extends Phaser.Scene {
       this.audioPopover,
     ]);
 
-    // --- 3. Bottom-Center Toolbar ---
-    const slotW = 34 * s;
+    // --- 3. Bottom-Center Toolbar (6 slots: Cangkul, Siram, Bibit, Pancing, Kapak, Beliung) ---
+    const slotW = 31 * s;
     const slotH = 32 * s;
-    const gap = 4.5 * s;
+    const gap = 3 * s;
     this.toolbarTotalW = TOOLS.length * slotW + (TOOLS.length - 1) * gap;
     this.toolbarSlotW = slotW;
     this.toolbarSlotH = slotH;
@@ -566,6 +612,12 @@ export class UIScene extends Phaser.Scene {
           })
         )
         .setOrigin(0.5);
+      const maxLblW = slotW - 3 * s;
+      if (lbl.width > maxLblW && maxLblW > 8) {
+        lbl.setFontSize(
+          Math.max(14, Math.floor((fontSlot * maxLblW) / lbl.width))
+        );
+      }
       const num = this.add
         .text(
           -slotW / 2 + 2.5 * s,
@@ -1098,20 +1150,23 @@ export class UIScene extends Phaser.Scene {
       this.debugGroup.setPosition(w - safeX - 134 * s, topBtnY + 23 * s);
     }
 
-    // In narrow/portrait orientation, lift the bottom-center toolbar above the corner touch controls
-    const isNarrowBottom = w < 420 * s;
-    const toolbarY = isNarrowBottom
-      ? h - safeY - 98 * s - this.toolbarSlotH / 2
-      : h - safeY - this.toolbarSlotH / 2;
+    // Responsive 6-slot toolbar: centered when wide, gently nudged clear of ALAT on 960x540,
+    // or lifted above BIBIT/joystick on narrow/portrait (720x1612).
+    const tb = computeToolbarLayout(
+      w,
+      h,
+      s,
+      this.toolbarTotalW,
+      this.toolbarSlotH
+    );
 
     if (this.toolSlots && this.toolSlots.length > 0) {
-      const startX = (w - this.toolbarTotalW) / 2;
       this.toolSlots.forEach((slot, idx) => {
         const x =
-          startX +
+          tb.startX +
           idx * (this.toolbarSlotW + this.toolbarGap) +
           this.toolbarSlotW / 2;
-        slot.container.setPosition(x, toolbarY);
+        slot.container.setPosition(x, tb.toolbarY);
       });
     }
 
@@ -1125,8 +1180,8 @@ export class UIScene extends Phaser.Scene {
     if (this.hintPanel) {
       this.hintPanel.setMaxWidth(Math.max(140 * s, w - safeX * 2 - 8 * s));
       this.hintPanel.setPosition(
-        w / 2,
-        toolbarY - this.toolbarSlotH / 2 - 6 * s
+        tb.centerX,
+        tb.toolbarY - this.toolbarSlotH / 2 - 6 * s
       );
     }
     if (this.toastPanel) {
