@@ -4,7 +4,7 @@
 
 ## 1. Ringkasan
 - **Everroot**: game 2D top-down pixel-art cozy farming + fishing + exploration, gaya Sunnyside World.
-- **Stack**: Phaser **3.90**, JavaScript ES modules, Vite **6.4.5**; target HP Android (Termux), desktop jalan.
+- **Stack**: Phaser **3.90**, JavaScript ES modules, Vite **6.4.5**; dibungkus **Capacitor 8.6.2** (`com.everroot.game`) untuk APK Android; target HP Android (Termux), desktop jalan.
 - **Render**: `Scale.RESIZE`, canvas ukuran fisik layar (`DPR` maks 2, batas 1920x1080), zoom dunia/UI berbasis short edge, `pixelArt`, `roundPixels`, `antialias: false`, Arcade.
 - **Aset**: 509 file (507 runtime + manifest + lisensi); 193 referensi, 0 hilang. **Jangan ubah/resize/timpa aset asli.** Bundle tidak boleh disebar publik; 2 sheet furnitur interior tidak dipakai.
 
@@ -15,10 +15,9 @@ npm run dev -- --host      # http://localhost:5173
 npm run build              # wajib lolos tiap tugas
 npm run preview -- --host  # port 4173
 ```
-- Script npm memanggil `node ./node_modules/vite/bin/vite.js` langsung; jangan ganti ke `vite`.
-- Debug: `?debug=1` → `+100G`/`Hari+1`/`+Bibit`, F6–F8, collider, audio.
-- Save: `localStorage` `everroot_v1_save` (v2, migrasi v1); audio `everroot_v1_audio_settings`.
-- `.gitignore`: `node_modules/`, `dist/`. Jangan push ke repo publik.
+- Script npm memanggil `node ./node_modules/vite/bin/vite.js` dan `node ./node_modules/@capacitor/cli/bin/capacitor` (`npm run cap -- <cmd>`) langsung; jangan ganti ke binary global.
+- **Android & CI/CD APK**: `capacitor.config.json` (`webDir: dist`, `androidScheme: https`), `android/` (`minSdk 24`, `compileSdk`/`targetSdk 36`, JDK 21, Gradle `8.14.3`, AGP `8.13.0`). Workflow `.github/workflows/build-apk.yml` (`push` ke `main` + `workflow_dispatch`) menjalankan `npm ci` → `npm run build` → `cap sync android` → `./gradlew assembleDebug` dan meng-upload artifact `everroot-debug-apk`.
+- Repo GitHub: `kkkenxy444-pixel/EVERROOT` (**PRIVATE**, branch `main`). `.gitignore`: `node_modules/`, `dist/`; `android/.gitignore` mengabaikan `assets/public` & `capacitor-cordova-android-plugins`. Jangan ubah repo ke publik selama aset ter-track.
 
 ## 3. Peta kode
 - `src/main.js` — config Phaser, scene list, overlay error, resize/orientasi.
@@ -82,6 +81,8 @@ npm run preview -- --host  # port 4173
 - **Teks perolehan & bibit (akar bug A)**: `INVENTORY_ITEM_ADDED` mengirim `{ itemId, amount, total }` (jangan baca `payload.added`); `SEED_CHANGED` hanya sinkron status HUD bibit (jangan `_showToast`), `emitState` hanya pancar `SEED_CHANGED` bila bibit/stok berubah.
 - **Gaya teks seragam**: pakai `UIStyle.js` (`WoodLabelPanel`, `drawWoodPanel`, `FloatingTextPool`); `ui_cozy_free.png` tidak dipakai karena palet krem kafe tidak cocok dengan kayu gelap HUD.
 - **Garis hitam tipis 1/3 layar (belum terbukti)**: overlay tint/hujan jauh melebihi layar (`2w×2h`); dugaan utama WebGL tilemap row seam pada tileset tanpa extrude + `zoom 3` + `CAMERA.LERP` pecahan.
+- **Debug & Save**: `?debug=1` → `+100G`/`Hari+1`/`+Bibit`, F6–F8, collider, audio. Save `localStorage` `everroot_v1_save` (v2, migrasi v1); audio `everroot_v1_audio_settings`.
+- **CI APK GitHub Actions**: `android-actions/setup-android@v3` gagal di runner karena paket `tools` usang; pakai `sdkmanager` bawaan runner (`platform-tools`, `platforms;android-36`, `build-tools;36.0.0`) + `setup-java@v5` (JDK 21), dan wajib `cap sync android` sebelum `./gradlew assembleDebug`.
 - **Pindah map**: jangan `stop(GameScene)`; teardown sistem → `WorldBuilder` → player; listener fadeIn sebelum `fadeIn()`; cache `village_struct_*` jangan dihapus.
 - **Quest**: simpan `aktif`/`selesai` saja; `takeItemsAndAddCoins({ save: false })` lalu satu save.
 
@@ -89,7 +90,7 @@ npm run preview -- --host  # port 4173
 1. **Suara hewan belum lengkap**: kokok ayam jantan, domba, babi, bebek, burung.
 2. **Paket 2 belum dites HP**: 11 tanaman, scroll/keterbacaan ShopModal, unlock bertahap.
 3. **Portrait/multitouch** belum dites penuh di HP.
-4. **Quest & Node farm belum dites browser/HP**: quest, animasi `axe`/`mining`, guncangan/debu node, SFX kontak/pecah baru lewat build + simulasi Node.
+4. **Quest, Node farm, & APK CI** belum dites browser/install langsung di HP Android (`everroot-debug-apk` baru terverifikasi build sukses di CI).
 
 ## 8. Konvensi
 - Baca skill relevan; `game-playtest` tak bisa di Termux → build + simulasi Node/manual.
@@ -108,15 +109,9 @@ npm run preview -- --host  # port 4173
 ## 10. Log sesi
 | Tanggal | Commit | Milestone |
 | :-- | :-- | :-- |
-| 2026-10-31 | `a6dcc8e`–`bc737be` | M1–M4 inti + memory/font/audio |
-| 2026-11-07 | `a47c88b`–`1363f5b` | Fix freeze, tint, hewan ambient |
-| 2026-11-08 | `0476ee3`,`551625e` | Paket 2: 7 tanaman + unlock |
-| 2026-11-14 | `85cad61`–`8ff7429`, `4fb6e7e`,`eceb9a8`, `b7023e4`–`2a6f757` | Inventory 24, hujan, hewan bebas, ternak, multi-map |
-| 2026-11-14 | `a8c28de`,`3c8cf25` | Komentar kebun, listener fadeIn |
-| 2026-11-21 | `a017e3c` | Desa fase 2: tata letak 64x40 |
-| 2026-11-22 | `1ac1d61` | Desa struktur Sunnyside |
-| 2026-11-23 | `c962c0e` | Desa fase 3: dialog + 3 NPC |
-| 2026-11-23 | `7e4ae4c` | Desa fase 4: quest kecil |
+| 2026-10-31–11-08 | `a6dcc8e`–`551625e` | M1–M4 inti, fix freeze/tint, hewan ambient, Paket 2 (11 tanaman) |
+| 2026-11-14 | `85cad61`–`3c8cf25` | Inventory 24, hujan, hewan bebas, ternak, multi-map, fadeIn |
+| 2026-11-21–23 | `a017e3c`–`7e4ae4c` | Desa 64x40, struktur Sunnyside, dialog + 3 NPC, 6 quest |
 | 2026-11-24 | `0d0cb5f`,`b340f62` | Optimasi audio preload (33.18 MB → 12.42 MB) |
-| 2026-11-25 | `da18f77` | Tebang kayu & tambang batu (map farm) |
-| 2026-11-25 | `1f4aa89`,`938dfd5`,`e94c477` | Fix teks perolehan, gaya teks kayu HUD, Kapak & Beliung + jangkauan |
+| 2026-11-25 | `da18f77`–`e94c477` | Tebang/tambang farm, fix teks perolehan, gaya teks kayu HUD, Kapak/Beliung |
+| 2026-11-25 | `c1efd14`,`f653459` | Upload repo private `main`, setup Capacitor 8.6.2 Android & CI `build-apk.yml` (run `45614008731` sukses) |
