@@ -623,6 +623,59 @@ export const FARMING = Object.freeze({
   CURSOR_LINE_ALPHA_IDLE: 0.38,
 });
 
+export const RESOURCE_NODES = Object.freeze({
+  TREE_RESPAWN_DAYS: 4,
+  ROCK_RESPAWN_DAYS: 3,
+  TREE_HITS_MIN: 4,
+  TREE_HITS_MAX: 5,
+  ROCK_HITS_MIN: 3,
+  ROCK_HITS_MAX: 4,
+  TREE_DROP_MIN: 2,
+  TREE_DROP_MAX: 4,
+  ROCK_DROP_MIN: 1,
+  ROCK_DROP_MAX: 2,
+  WOOD_ITEM_ID: 'wood',
+  ROCK_ITEM_ID: 'rock',
+  WOOD_SELL_PRICE: 6,
+  ROCK_SELL_PRICE: 9,
+  INTERACT_RADIUS_PX: 26,
+  FACING_MIN_DOT: 0.4,
+  AXE_ANIM_FPS: 18,
+  AXE_LOCK_MS: 560,
+  AXE_CONTACT_DELAY_MS: 300,
+  MINING_ANIM_FPS: 18,
+  MINING_LOCK_MS: 560,
+  MINING_CONTACT_DELAY_MS: 300,
+  BREAK_SFX_RATE_TREE: 0.8,
+  BREAK_SFX_RATE_ROCK: 0.7,
+  SHAKE_OFFSET_PX: 2,
+  SHAKE_DURATION_MS: 50,
+  RESPAWN_POP_MS: 220,
+  // 10 interior trees on the farm map (all other trees remain decorative)
+  TREE_NODE_KEYS: Object.freeze([
+    '7,5',
+    '17,4',
+    '24,5',
+    '27,6',
+    '4,14',
+    '3,19',
+    '9,23',
+    '19,23',
+    '29,24',
+    '35,25',
+  ]),
+  // 3 converted detailLayer rocks + 4 new interior grass rocks (stump at 22,19 stays decor)
+  ROCK_PLACEMENTS: Object.freeze([
+    Object.freeze({ tx: 6, ty: 7, variant: 'large' }),
+    Object.freeze({ tx: 22, ty: 14, variant: 'cluster' }),
+    Object.freeze({ tx: 38, ty: 8, variant: 'medium' }),
+    Object.freeze({ tx: 5, ty: 17, variant: 'medium' }),
+    Object.freeze({ tx: 29, ty: 7, variant: 'large' }),
+    Object.freeze({ tx: 13, ty: 21, variant: 'cluster' }),
+    Object.freeze({ tx: 33, ty: 23, variant: 'medium' }),
+  ]),
+});
+
 /**
  * Progressive seed unlock schedule by in-game day (`day >= entry.day`).
  * Easy to tune without touching save format or system logic.

@@ -1,6 +1,6 @@
 import { ASSET_KEYS, cropStageKey } from './assetKeys.js';
 import { CROP_LIST, CROPS, getCropUnlockDay, isCropUnlocked } from './crops.js';
-import { FISHING, INVENTORY, LIVESTOCK } from './gameConfig.js';
+import { FISHING, INVENTORY, LIVESTOCK, RESOURCE_NODES } from './gameConfig.js';
 
 /**
  * Toolbar tools & inventory item catalog for Everroot V1.
@@ -378,6 +378,30 @@ export const ITEMS = Object.freeze({
     canSell: true,
     stackMax: INVENTORY.DEFAULT_MAX_STACK,
   }),
+
+  // --- Resource gathering drops (dijual di Kotak Jual) ---
+  wood: Object.freeze({
+    id: RESOURCE_NODES.WOOD_ITEM_ID,
+    name: 'Kayu',
+    category: 'resource',
+    iconKey: ASSET_KEYS.ITEM_WOOD,
+    buyPrice: 0,
+    sellPrice: RESOURCE_NODES.WOOD_SELL_PRICE,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
+  rock: Object.freeze({
+    id: RESOURCE_NODES.ROCK_ITEM_ID,
+    name: 'Batu',
+    category: 'resource',
+    iconKey: ASSET_KEYS.ITEM_ROCK,
+    buyPrice: 0,
+    sellPrice: RESOURCE_NODES.ROCK_SELL_PRICE,
+    canBuy: false,
+    canSell: true,
+    stackMax: INVENTORY.DEFAULT_MAX_STACK,
+  }),
 });
 
 export const LEGACY_FISH_ID_MAP = Object.freeze({
@@ -408,10 +432,16 @@ export const LIVESTOCK_ITEM_IDS = Object.freeze([
   LIVESTOCK.MILK_ITEM_ID,
 ]);
 
+export const RESOURCE_ITEM_IDS = Object.freeze([
+  RESOURCE_NODES.WOOD_ITEM_ID,
+  RESOURCE_NODES.ROCK_ITEM_ID,
+]);
+
 export const SELLABLE_ITEM_IDS = Object.freeze([
   ...HARVEST_CROP_ITEM_IDS,
   ...FISH_ITEM_IDS,
   ...LIVESTOCK_ITEM_IDS,
+  ...RESOURCE_ITEM_IDS,
 ]);
 
 export function getSeedUnlockDay(seedItemId) {

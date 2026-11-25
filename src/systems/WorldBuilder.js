@@ -5,16 +5,19 @@ import {
   MAPS,
   MAP_ZONES,
   NPC as NPC_CONFIG,
+  RESOURCE_NODES,
   TILE,
   UI,
   VILLAGE_LAYOUT,
 } from '../data/gameConfig.js';
 import { NPC_DEFS, resolveNpcSpawns } from '../data/npcs.js';
+import { NODE_KINDS, TREE_RESOURCE_COORD_SET } from '../data/resourceNodes.js';
 import { NPC } from '../entities/NPC.js';
 import {
   DIRT_PATH_VARIANTS,
   GRASS_VARIANTS,
   TILE_INDEX,
+  tileCoords,
   waterTileFor,
 } from '../data/tileIndex.js';
 import { pixelTextStyle } from './FontLoader.js';
@@ -52,6 +55,7 @@ export class WorldBuilder {
     this.landmarkLabels = {};
     this.gateZones = [];
     this.npcs = [];
+    this.resourceNodes = [];
     this.structures = new StructureBuilder(scene);
     this._tracked = [];
     this._destroyed = false;
@@ -1137,16 +1141,34 @@ export class WorldBuilder {
       const worldY = (t.ty + 1) * TILE.SIZE;
       const key =
         t.type === 'round' ? ASSET_KEYS.TREE_ROUND : ASSET_KEYS.TREE_PINE;
+      const animKey = `${key}_anim`;
       const tree = this._track(
         this.scene.add
           .sprite(worldX, worldY, key, 0)
           .setOrigin(0.5, 0.92)
           .setDepth(DEPTH.Y_SORT_BASE + worldY)
       );
-      tree.play(`${key}_anim`);
+      tree.play(animKey);
 
-      this._addTileCollider(t.tx, t.ty, 14, 12);
+      const collider = this._addTileCollider(t.tx, t.ty, 14, 12);
       this.blockedTiles.add(`${t.tx},${t.ty}`);
+
+      if (TREE_RESOURCE_COORD_SET.has(`${t.tx},${t.ty}`)) {
+        this.resourceNodes.push({
+          id: `tree_${t.tx}_${t.ty}`,
+          kind: NODE_KINDS.TREE,
+          tx: t.tx,
+          ty: t.ty,
+          baseX: worldX,
+          baseY: worldY,
+          sprite: tree,
+          animKey,
+          collider,
+          colliderWidth: 14,
+          colliderHeight: 12,
+          active: true,
+        });
+      }
     }
 
     // Perimeter border colliders & bushes (1-tile margin around map)
@@ -1171,17 +1193,55 @@ export class WorldBuilder {
       }
     }
 
-    // Decorative rocks & stumps (solid)
-    const rocks = [
-      { tx: 6, ty: 7, tile: TILE_INDEX.ROCK_LARGE },
-      { tx: 22, ty: 14, tile: TILE_INDEX.ROCK_CLUSTER },
-      { tx: 22, ty: 19, tile: TILE_INDEX.STUMP_1 },
-      { tx: 38, ty: 8, tile: TILE_INDEX.ROCK_MEDIUM },
-    ];
-    for (const r of rocks) {
-      detailLayer.putTileAt(r.tile, r.tx, r.ty);
-      this._addTileCollider(r.tx, r.ty, 12, 10);
+    // Decorative stump (solid tile in detailLayer)
+    detailLayer.putTileAt(TILE_INDEX.STUMP_1, 22, 19);
+    this._addTileCollider(22, 19, 12, 10);
+    this.blockedTiles.add('22,19');
+
+    // Resource rocks as individual cropped sprites (3 converted + 4 new interior rocks)
+    const rockVariantTile = {
+      large: TILE_INDEX.ROCK_LARGE,
+      cluster: TILE_INDEX.ROCK_CLUSTER,
+      medium: TILE_INDEX.ROCK_MEDIUM,
+    };
+    for (const r of RESOURCE_NODES.ROCK_PLACEMENTS) {
+      const tileIdx = rockVariantTile[r.variant] ?? TILE_INDEX.ROCK_MEDIUM;
+      const { col, row } = tileCoords(tileIdx);
+      const frameName = `rock_${r.variant}_frame`;
+      this._ensureCroppedFrame(
+        ASSET_KEYS.TILESET_SUNNYSIDE,
+        frameName,
+        col * TILE.SIZE,
+        row * TILE.SIZE,
+        TILE.SIZE,
+        TILE.SIZE
+      );
+
+      const worldX = r.tx * TILE.SIZE + TILE.SIZE / 2;
+      const worldY = r.ty * TILE.SIZE + TILE.SIZE / 2;
+      const rockSprite = this._track(
+        this.scene.add
+          .sprite(worldX, worldY, ASSET_KEYS.TILESET_SUNNYSIDE, frameName)
+          .setOrigin(0.5, 0.5)
+          .setDepth(DEPTH.Y_SORT_BASE + (r.ty + 0.8) * TILE.SIZE)
+      );
+      const collider = this._addTileCollider(r.tx, r.ty, 12, 10);
       this.blockedTiles.add(`${r.tx},${r.ty}`);
+
+      this.resourceNodes.push({
+        id: `rock_${r.tx}_${r.ty}`,
+        kind: NODE_KINDS.ROCK,
+        tx: r.tx,
+        ty: r.ty,
+        baseX: worldX,
+        baseY: worldY,
+        sprite: rockSprite,
+        animKey: null,
+        collider,
+        colliderWidth: 12,
+        colliderHeight: 10,
+        active: true,
+      });
     }
 
     // Animated mushrooms
@@ -1240,6 +1300,70 @@ export class WorldBuilder {
     this.scene.physics.add.existing(zone, true);
     this.colliders.add(zone);
     this._track(zone);
+    return zone;
+  }
+
+  /**
+   * Toggles a resource node between intact (visible sprite + static collider)
+   * and broken (hidden sprite + detached collider), optionally playing a brief pop-in.
+   */
+  setResourceNodeActive(node, active, animatePop = false) {
+    if (!node || this._destroyed) return;
+    const key = `${node.tx},${node.ty}`;
+    node.active = Boolean(active);
+
+    if (!active) {
+      this.blockedTiles.delete(key);
+      if (node.sprite && node.sprite.scene) {
+        if (this.scene?.tweens) this.scene.tweens.killTweensOf(node.sprite);
+        node.sprite.setPosition(node.baseX, node.baseY);
+        node.sprite.setVisible(false).setActive(false);
+      }
+      if (node.collider) {
+        const idx = this._tracked.indexOf(node.collider);
+        if (idx !== -1) this._tracked.splice(idx, 1);
+        try {
+          if (this.colliders) {
+            this.colliders.remove(node.collider, true, true);
+          } else {
+            node.collider.destroy();
+          }
+        } catch {
+          // ignore if physics world is already shutting down
+        }
+        node.collider = null;
+      }
+      return;
+    }
+
+    this.blockedTiles.add(key);
+    if (!node.collider && this.colliders) {
+      node.collider = this._addTileCollider(
+        node.tx,
+        node.ty,
+        node.colliderWidth,
+        node.colliderHeight
+      );
+    }
+    if (node.sprite && node.sprite.scene) {
+      node.sprite.setPosition(node.baseX, node.baseY);
+      node.sprite.setScale(1).setAlpha(1).setVisible(true).setActive(true);
+      if (node.animKey && node.sprite.anims) {
+        node.sprite.play(node.animKey, true);
+      }
+      if (animatePop && this.scene?.tweens) {
+        this.scene.tweens.killTweensOf(node.sprite);
+        node.sprite.setScale(0.35).setAlpha(0.4);
+        this.scene.tweens.add({
+          targets: node.sprite,
+          scaleX: 1,
+          scaleY: 1,
+          alpha: 1,
+          duration: RESOURCE_NODES.RESPAWN_POP_MS,
+          ease: 'Back.easeOut',
+        });
+      }
+    }
   }
 
   /**
@@ -1397,6 +1521,7 @@ export class WorldBuilder {
     this.colliders = null;
     this.gateZones = [];
     this.npcs = [];
+    this.resourceNodes = [];
     this.landmarkLabels = {};
     this.waterTiles.clear();
     this.dirtTiles.clear();

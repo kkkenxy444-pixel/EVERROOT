@@ -123,5 +123,8 @@ export const AUDIO_CONFIG = Object.freeze({
     },
     // Quest selesai: jingle sosial, satu instance agar tidak menumpuk
     [ASSET_KEYS.SFX_QUEST_COMPLETE]: { volume: 0.55, maxInstances: 1 },
+    // Tebang kayu & tambang batu: dinormalisasi terhadap life_hoe_till_01.ogg (-20.1 dB, vol 0.38)
+    [ASSET_KEYS.SFX_AXE_CHOP]: { volume: 0.61, detuneJitter: 20, maxInstances: 1 },
+    [ASSET_KEYS.SFX_MINE_CLANG]: { volume: 0.15, detuneJitter: 20, maxInstances: 1 },
   }),
 });

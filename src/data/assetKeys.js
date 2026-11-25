@@ -111,6 +111,8 @@ export const ASSET_KEYS = Object.freeze({
   SFX_ANIMAL_COW: 'sfx_animal_cow',
   SFX_DIALOGUE_BLIP: 'sfx_dialogue_blip',
   SFX_QUEST_COMPLETE: 'sfx_quest_complete',
+  SFX_AXE_CHOP: 'sfx_axe_chop',
+  SFX_MINE_CLANG: 'sfx_mine_clang',
 });
 
 /**
@@ -260,6 +262,8 @@ export const CHARACTER_ANIM_DEFS = Object.freeze([
   { action: 'idle', folder: 'idle', fileAction: 'idle', frames: 9, fps: 8, repeat: -1 },
   { action: 'walk', folder: 'walking', fileAction: 'walk', frames: 8, fps: 10, repeat: -1 },
   { action: 'dig', folder: 'dig', fileAction: 'dig', frames: 13, fps: 16, repeat: 0 },
+  { action: 'axe', folder: 'axe', fileAction: 'axe', frames: 10, fps: 18, repeat: 0 },
+  { action: 'mining', folder: 'mining', fileAction: 'mining', frames: 10, fps: 18, repeat: 0 },
   { action: 'watering', folder: 'watering', fileAction: 'watering', frames: 5, fps: 10, repeat: 0 },
   { action: 'doing', folder: 'doing', fileAction: 'doing', frames: 8, fps: 14, repeat: 0 },
   { action: 'casting', folder: 'casting', fileAction: 'casting', frames: 15, fps: 16, repeat: 0 },
@@ -471,4 +475,7 @@ export const AUDIO_ASSETS = Object.freeze([
   { key: ASSET_KEYS.SFX_ANIMAL_COW, path: 'audio/sfx/animals/farm_cow_moo.ogg' },
   { key: ASSET_KEYS.SFX_DIALOGUE_BLIP, path: 'audio/sfx/social/farm_dialogue_blip_01.ogg' },
   { key: ASSET_KEYS.SFX_QUEST_COMPLETE, path: 'audio/sfx/social/farm_quest_complete.ogg' },
+  // Resource gathering SFX
+  { key: ASSET_KEYS.SFX_AXE_CHOP, path: 'audio/sfx/tools/life_axe_chop_01.ogg' },
+  { key: ASSET_KEYS.SFX_MINE_CLANG, path: 'audio/sfx/farming_crafting/metal_clang_opt.ogg' },
 ]);

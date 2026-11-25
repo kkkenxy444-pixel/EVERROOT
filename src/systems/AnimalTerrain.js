@@ -55,6 +55,27 @@ export class AnimalTerrain {
     this.grid[ty * this.width + tx] = cell;
   }
 
+  /**
+   * Updates a single tile cell when a dynamic resource node breaks or respawns,
+   * preserving pond water, pier, and farm plot safety margins.
+   */
+  setTileBlocked(tx, ty, blocked) {
+    if (tx < 0 || tx >= this.width || ty < 0 || ty >= this.height) return;
+    const farm = MAP_ZONES.FARM_PLOT;
+    const margin = AMBIENT_ANIMALS.FARM_MARGIN_TILES;
+    if (
+      tx >= farm.X0 - margin &&
+      tx <= farm.X1 + margin &&
+      ty >= farm.Y0 - margin &&
+      ty <= farm.Y1 + margin
+    ) {
+      return;
+    }
+    const idx = ty * this.width + tx;
+    if (this.grid[idx] === CELL_WATER) return;
+    this.grid[idx] = blocked ? CELL_FORBIDDEN : CELL_LAND;
+  }
+
   _cellAtWorld(wx, wy) {
     const tx = Math.floor(wx / TILE.SIZE);
     const ty = Math.floor(wy / TILE.SIZE);

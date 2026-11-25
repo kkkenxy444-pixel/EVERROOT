@@ -34,6 +34,7 @@ import { InputSystem } from '../systems/InputSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { LivestockSystem } from '../systems/LivestockSystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
+import { ResourceNodeSystem } from '../systems/ResourceNodeSystem.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { TimeSystem } from '../systems/TimeSystem.js';
 import { WeatherSystem } from '../systems/WeatherSystem.js';
@@ -205,6 +206,7 @@ export class GameScene extends Phaser.Scene {
     this.targetCursor = null;
     this.farmingSystem = null;
     this.fishingSystem = null;
+    this.resourceNodeSystem = null;
     this.ambientAnimals = [];
     this.animalTerrain = null;
     this._lastCursorTx = -1;
@@ -232,6 +234,22 @@ export class GameScene extends Phaser.Scene {
       getCatchableFishIds: () => this.inventorySystem.getCatchableFishIds(),
       addFishToInventory: (fishId) => this.inventorySystem.addItem(fishId, 1),
     });
+
+    // Build & sync resource nodes BEFORE AnimalTerrain so animal mask accounts for node colliders
+    this.resourceNodeSystem = new ResourceNodeSystem(
+      this,
+      this.gameState,
+      this.worldBuilder,
+      this.inventorySystem,
+      {
+        onStateChanged: () => this._saveCurrentState(),
+        getPlayerTile: () =>
+          this.player ? this.player.getTileCoords() : null,
+        getAnimals: () => this.ambientAnimals,
+        getAnimalTerrain: () => this.animalTerrain,
+      }
+    );
+    this.resourceNodeSystem.syncInitialState();
 
     // Re-apply rain watering when entering the farm during an active rain period
     if (this.weatherSystem && this.weatherSystem.isRaining) {
@@ -266,6 +284,10 @@ export class GameScene extends Phaser.Scene {
     safe('fishingSystem', () => {
       if (this.fishingSystem) this.fishingSystem.destroy();
       this.fishingSystem = null;
+    });
+    safe('resourceNodeSystem', () => {
+      if (this.resourceNodeSystem) this.resourceNodeSystem.destroy();
+      this.resourceNodeSystem = null;
     });
     safe('ambientAnimals', () => {
       if (Array.isArray(this.ambientAnimals)) {
@@ -446,6 +468,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   _cancelFishingForTransition() {
+    if (this.resourceNodeSystem) {
+      this.resourceNodeSystem.cancelPendingHit();
+    }
     try {
       if (
         this.fishingSystem &&
@@ -808,6 +833,7 @@ export class GameScene extends Phaser.Scene {
       safeDestroy('inventorySystem');
       safeDestroy('farmingSystem');
       safeDestroy('fishingSystem');
+      safeDestroy('resourceNodeSystem');
       safeDestroy('weatherSystem');
       safeDestroy('dialogueSystem');
       safeDestroy('timeSystem');
@@ -1390,6 +1416,11 @@ export class GameScene extends Phaser.Scene {
     // Livestock products are collected only when no other interaction applies
     if (this._tryCollectAnimalProduct()) return;
 
+    // Resource nodes (trees/rocks on farm) run after livestock and before tool fallback messages
+    if (this.resourceNodeSystem && this.resourceNodeSystem.tryHit(this.player)) {
+      return;
+    }
+
     // Preserve the old farming guidance when no valid farm target/animals are nearby
     if (isFarmTool && this.farmingSystem) {
       const res = this.farmingSystem.handleToolAction(
@@ -1466,6 +1497,9 @@ export class GameScene extends Phaser.Scene {
 
     if (this.isShopOpen) {
       eventBus.emit(EVENTS.CLOSE_SHOP);
+    }
+    if (this.resourceNodeSystem) {
+      this.resourceNodeSystem.cancelPendingHit();
     }
     if (this.fishingSystem && this.fishingSystem.isActive()) {
       this.fishingSystem.cancelFishing(false, this.player);
@@ -1634,6 +1668,9 @@ export class GameScene extends Phaser.Scene {
         const product = ITEMS[readyAnimal.productDef.itemId];
         hintText = `[AKSI] Ambil ${product?.name || 'hasil ternak'}`;
       }
+    }
+    if (!hintText && this.resourceNodeSystem) {
+      hintText = this.resourceNodeSystem.getNodeHint(this.player);
     }
 
     if (this._lastHint !== hintText) {

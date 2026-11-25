@@ -1,21 +1,21 @@
 Dibuat otomatis oleh npm run codemap. Jangan dibaca penuh; gunakan grep -n <nama> CODEMAP.md lalu sed -n 'A,Bp' <file>.
 
-## src/data/assetKeys.js (22 KB, 475 baris)
+## src/data/assetKeys.js (22 KB, 482 baris)
 L6 ASSET_BASE_PATH
 L8 ASSET_KEYS
-L121 charLayerKey
-L128 cropStageKey
-L134 IMAGE_ASSETS
-L259 CHARACTER_ANIM_DEFS
-L275 PLAYER_CHARACTER_PARTS
-L276 NPC_HAIR_PARTS
-L283 CHARACTER_PARTS
-L287 NPC_CHARACTER_ACTIONS
-L290 isCharacterLayerLoaded
-L298 SPRITESHEET_ASSETS
-L422 AUDIO_ASSETS
+L123 charLayerKey
+L130 cropStageKey
+L136 IMAGE_ASSETS
+L261 CHARACTER_ANIM_DEFS
+L279 PLAYER_CHARACTER_PARTS
+L280 NPC_HAIR_PARTS
+L287 CHARACTER_PARTS
+L291 NPC_CHARACTER_ACTIONS
+L294 isCharacterLayerLoaded
+L302 SPRITESHEET_ASSETS
+L426 AUDIO_ASSETS
 
-## src/data/audioConfig.js (7 KB, 128 baris)
+## src/data/audioConfig.js (7 KB, 131 baris)
 L19 AUDIO_CONFIG
 
 ## src/data/crops.js (7 KB, 207 baris)
@@ -31,7 +31,7 @@ L18 NPC_DIALOGUES
 L231 isLineEligible
 L257 pickDialogueLines
 
-## src/data/gameConfig.js (29 KB, 844 baris)
+## src/data/gameConfig.js (30 KB, 897 baris)
 L5 SCENE_KEYS
 L13 GAME
 L29 TILE
@@ -51,31 +51,33 @@ L527 DEPTH
 L543 TIME
 L583 WEATHER
 L608 FARMING
-L630 SEED_UNLOCK_SCHEDULE
-L639 FISHING
-L663 INVENTORY
-L675 ECONOMY
-L684 SAVE
-L691 INPUT
-L715 UI
-L780 DEBUG
-L790 isDebugModeEnabled
-L802 getWorldZoom
-L815 getUiScale
-L827 getPhysicalCanvasSize
+L626 RESOURCE_NODES
+L683 SEED_UNLOCK_SCHEDULE
+L692 FISHING
+L716 INVENTORY
+L728 ECONOMY
+L737 SAVE
+L744 INPUT
+L768 UI
+L833 DEBUG
+L843 isDebugModeEnabled
+L855 getWorldZoom
+L868 getUiScale
+L880 getPhysicalCanvasSize
 
-## src/data/items.js (12 KB, 428 baris)
+## src/data/items.js (12 KB, 458 baris)
 L9 TOOL_IDS
 L16 TOOLS
 L48 ITEMS
-L383 LEGACY_FISH_ID_MAP
-L392 SEED_ITEM_IDS
-L396 HARVEST_CROP_ITEM_IDS
-L400 FISH_ITEM_IDS
-L406 LIVESTOCK_ITEM_IDS
-L411 SELLABLE_ITEM_IDS
-L417 getSeedUnlockDay
-L423 isSeedUnlocked
+L407 LEGACY_FISH_ID_MAP
+L416 SEED_ITEM_IDS
+L420 HARVEST_CROP_ITEM_IDS
+L424 FISH_ITEM_IDS
+L430 LIVESTOCK_ITEM_IDS
+L435 RESOURCE_ITEM_IDS
+L440 SELLABLE_ITEM_IDS
+L447 getSeedUnlockDay
+L453 isSeedUnlocked
 
 ## src/data/npcs.js (2 KB, 46 baris)
 L8 NPC_DEFS
@@ -87,6 +89,18 @@ L33 QUESTS
 L179 QUESTS_BY_ID
 L187 STORED_QUEST_STATUSES
 L194 sanitizeQuestState
+
+## src/data/resourceNodes.js (5 KB, 177 baris)
+L3 NODE_KINDS
+L9 FARM_RESOURCE_NODE_DEFS
+L30 VALID_RESOURCE_NODE_IDS
+L34 TREE_RESOURCE_COORD_SET
+L39 hashNodeDay
+L59 getNodeStatsForDay
+L98 getRespawnDays
+L108 sanitizeNodesState
+L123 isNodeDestroyed
+L137 resolveNodeRespawns
 
 ## src/data/tileIndex.js (8 KB, 184 baris)
 L9 TILESET_META
@@ -163,50 +177,50 @@ L9 class BootScene
 L10 constructor
 L14 create
 
-## src/scenes/GameScene.js (55 KB, 1712 baris)
-L48 class GameScene
-L49 constructor
-L53 init
-L57 create
-L203 _createMapLocalSystems
-L253 _destroyMapLocalSystems
-L289 _buildMap
-L328 _teardownMap
-L365 _switchMap
-L393 _completeMapSwitch
-L448 _cancelFishingForTransition
-L462 _closePanelsForTransition
-L476 _resetInputForTransition
-L494 _tryUseGate
-L512 _getSavedSpawnTile
-L528 _getEntrySpawn
-L537 _updateSavedPositionForCurrentMap
-L554 _applyCameraFollow
-L562 _createDebugStats
-L580 _updateDebugStats
-L597 _bindEvents
-L830 _clearMorningCrowTimers
-L850 _scheduleMorningCrowSequence
-L883 _spawnAmbientAnimals
-L938 _refreshLivestockVisuals
-L954 _getNearbyReadyAnimal
-L979 _tryCollectAnimalProduct
-L1014 _updateCameraAndOverlay
-L1049 _applyDayNightTint
-L1071 _initWeatherVisuals
-L1110 _updateRainVisual
-L1176 _refreshQuestState
-L1192 _onQuestCompleted
-L1209 _saveCurrentState
-L1219 flushSaveIfActive
-L1229 _cycleTool
-L1242 _emitToolChanged
-L1261 _getEffectiveTargetTile
-L1287 _handlePrimaryAction
-L1416 _debugAdvanceDayImmediate
-L1454 _startSleepSequence
-L1547 update
-L1645 _drawTargetCursor
+## src/scenes/GameScene.js (56 KB, 1749 baris)
+L49 class GameScene
+L50 constructor
+L54 init
+L58 create
+L204 _createMapLocalSystems
+L271 _destroyMapLocalSystems
+L311 _buildMap
+L350 _teardownMap
+L387 _switchMap
+L415 _completeMapSwitch
+L470 _cancelFishingForTransition
+L487 _closePanelsForTransition
+L501 _resetInputForTransition
+L519 _tryUseGate
+L537 _getSavedSpawnTile
+L553 _getEntrySpawn
+L562 _updateSavedPositionForCurrentMap
+L579 _applyCameraFollow
+L587 _createDebugStats
+L605 _updateDebugStats
+L622 _bindEvents
+L856 _clearMorningCrowTimers
+L876 _scheduleMorningCrowSequence
+L909 _spawnAmbientAnimals
+L964 _refreshLivestockVisuals
+L980 _getNearbyReadyAnimal
+L1005 _tryCollectAnimalProduct
+L1040 _updateCameraAndOverlay
+L1075 _applyDayNightTint
+L1097 _initWeatherVisuals
+L1136 _updateRainVisual
+L1202 _refreshQuestState
+L1218 _onQuestCompleted
+L1235 _saveCurrentState
+L1245 flushSaveIfActive
+L1255 _cycleTool
+L1268 _emitToolChanged
+L1287 _getEffectiveTargetTile
+L1313 _handlePrimaryAction
+L1447 _debugAdvanceDayImmediate
+L1485 _startSleepSequence
+L1581 update
+L1682 _drawTargetCursor
 
 ## src/scenes/MenuScene.js (12 KB, 413 baris)
 L19 class MenuScene
@@ -257,21 +271,22 @@ L1227 _updateQuestTracker
 L1251 _showToast
 L1266 _bindEvents
 
-## src/systems/AnimalTerrain.js (6 KB, 159 baris)
+## src/systems/AnimalTerrain.js (6 KB, 180 baris)
 L3 CELL_LAND
 L4 CELL_WATER
 L5 CELL_FORBIDDEN
 L20 class AnimalTerrain
 L21 constructor
 L53 _setCell
-L58 _cellAtWorld
-L65 _isFootprint
-L75 isLandWalkable
-L85 isWaterWalkable
-L98 isLineWalkable
-L121 findSpawnPosition
+L62 setTileBlocked
+L79 _cellAtWorld
+L86 _isFootprint
+L96 isLandWalkable
+L106 isWaterWalkable
+L119 isLineWalkable
+L142 findSpawnPosition
 
-## src/systems/AudioManager.js (22 KB, 748 baris)
+## src/systems/AudioManager.js (22 KB, 754 baris)
 L10 class AudioManagerClass
 L11 constructor
 L42 _loadSettings
@@ -293,17 +308,17 @@ L437 stopBgm
 L458 stopAmbience
 L479 _pruneActiveSfx
 L496 playSfx
-L613 getActiveSoundsSnapshot
-L652 _applyVolumesToActiveTracks
-L672 toggleMute
-L681 setMusicLevel
-L692 cycleMusicLevel
-L700 setAmbienceLevel
-L711 cycleAmbienceLevel
-L719 setSfxLevel
-L730 cycleSfxLevel
-L738 _hasAudioInCache
-L747 AudioManager
+L619 getActiveSoundsSnapshot
+L658 _applyVolumesToActiveTracks
+L678 toggleMute
+L687 setMusicLevel
+L698 cycleMusicLevel
+L706 setAmbienceLevel
+L717 cycleAmbienceLevel
+L725 setSfxLevel
+L736 cycleSfxLevel
+L744 _hasAudioInCache
+L753 AudioManager
 
 ## src/systems/DialogueSystem.js (3 KB, 114 baris)
 L13 class DialogueSystem
@@ -432,21 +447,37 @@ L272 _offerLines
 L281 _reminderLines
 L290 _doneLines
 
-## src/systems/SaveSystem.js (12 KB, 377 baris)
-L30 class SaveSystemClass
-L31 constructor
-L36 _readRaw
-L48 _writeRaw
-L61 _removeRaw
-L76 createDefaultState
-L132 _sanitizeTilePosition
-L155 _sanitizeMapPositions
-L174 _isSupportedVersion
-L181 hasSave
-L202 load
-L353 save
-L371 clear
-L376 SaveSystem
+## src/systems/ResourceNodeSystem.js (12 KB, 378 baris)
+L22 class ResourceNodeSystem
+L23 constructor
+L64 _getCurrentDay
+L68 _getNodes
+L74 _isTileOccupied
+L96 syncInitialState
+L112 _handleNewDay
+L142 getTargetNode
+L187 getNodeHint
+L193 tryHit
+L227 _onHitContact
+L296 _playHitEffects
+L332 cancelPendingHit
+L343 destroy
+
+## src/systems/SaveSystem.js (12 KB, 384 baris)
+L31 class SaveSystemClass
+L32 constructor
+L37 _readRaw
+L49 _writeRaw
+L62 _removeRaw
+L77 createDefaultState
+L135 _sanitizeTilePosition
+L158 _sanitizeMapPositions
+L177 _isSupportedVersion
+L184 hasSave
+L205 load
+L360 save
+L378 clear
+L383 SaveSystem
 
 ## src/systems/StructureBuilder.js (5 KB, 150 baris)
 L5 TILE_COLUMNS
@@ -491,48 +522,49 @@ L154 getSnapshot
 L163 _emit
 L173 destroy
 
-## src/systems/WorldBuilder.js (44 KB, 1409 baris)
-L27 createSeededRng
-L42 class WorldBuilder
-L43 constructor
-L60 build
-L79 _track
-L84 _createTilemapLayers
-L114 _buildFarmValley
-L309 _buildVillage
-L400 _buildVillageNpcs
-L414 _paintVillageDirt
-L433 _paintVillageFootpaths
-L493 _buildVillageBorder
-L535 _buildVillagePlazaFence
-L553 _buildVillageDeadEnd
-L571 _buildVillageStructure
-L602 _addVillageProp
-L631 _buildVillageHouseGardens
-L668 _buildVillageNature
-L769 _addVillageTree
-L785 _addVillageWildflowers
-L811 _isVillageDecorFree
-L823 _paintPathFringes
-L846 _isPerimeterGateTile
-L865 _addGateZones
-L890 getGateAt
-L905 _buildPlayerHouse
-L981 _buildShippingAndShopArea
-L1084 _buildWindmill
-L1103 _populateNature
-L1229 _ensureCroppedFrame
-L1236 _addTileCollider
-L1250 _addRectCollider
-L1258 _addTileRectCollider
-L1269 isFarmableTile
-L1273 isWaterTile
-L1277 isDirtTile
-L1281 isTileBlocked
-L1294 getNearbyLandmark
-L1349 getNearbyNpc
-L1369 updateLandmarkLabels
-L1383 destroy
+## src/systems/WorldBuilder.js (47 KB, 1534 baris)
+L30 createSeededRng
+L45 class WorldBuilder
+L46 constructor
+L64 build
+L83 _track
+L88 _createTilemapLayers
+L118 _buildFarmValley
+L313 _buildVillage
+L404 _buildVillageNpcs
+L418 _paintVillageDirt
+L437 _paintVillageFootpaths
+L497 _buildVillageBorder
+L539 _buildVillagePlazaFence
+L557 _buildVillageDeadEnd
+L575 _buildVillageStructure
+L606 _addVillageProp
+L635 _buildVillageHouseGardens
+L672 _buildVillageNature
+L773 _addVillageTree
+L789 _addVillageWildflowers
+L815 _isVillageDecorFree
+L827 _paintPathFringes
+L850 _isPerimeterGateTile
+L869 _addGateZones
+L894 getGateAt
+L909 _buildPlayerHouse
+L985 _buildShippingAndShopArea
+L1088 _buildWindmill
+L1107 _populateNature
+L1289 _ensureCroppedFrame
+L1296 _addTileCollider
+L1310 setResourceNodeActive
+L1374 _addRectCollider
+L1382 _addTileRectCollider
+L1393 isFarmableTile
+L1397 isWaterTile
+L1401 isDirtTile
+L1405 isTileBlocked
+L1418 getNearbyLandmark
+L1473 getNearbyNpc
+L1493 updateLandmarkLabels
+L1507 destroy
 
 ## src/ui/DialogueBox.js (9 KB, 311 baris)
 L12 class DialogueBox

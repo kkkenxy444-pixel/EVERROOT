@@ -565,14 +565,20 @@ class AudioManagerClass {
       }
     }
 
-    const detune = sfxCfg.detuneJitter
-      ? (Math.random() * 2 - 1) * sfxCfg.detuneJitter
-      : 0;
+    const rate =
+      options && Number.isFinite(options.rate) && options.rate > 0
+        ? Number(options.rate)
+        : 1;
+    const detune =
+      rate === 1 && sfxCfg.detuneJitter
+        ? (Math.random() * 2 - 1) * sfxCfg.detuneJitter
+        : 0;
 
     try {
       const sfxInstance = this.sound.add(sfxKey, {
         volume: vol,
         detune,
+        rate,
       });
       const entry = {
         sound: sfxInstance,
